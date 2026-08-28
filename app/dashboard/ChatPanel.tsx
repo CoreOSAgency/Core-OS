@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Agent } from "@/lib/agents";
 
-type ChatTurn = { role: "user" | "model"; text: string };
+type ChatTurn = { role: "user" | "model"; text: string; contextSaved?: boolean };
 
 // Tight, dark-theme-matched overrides — markdown's default block spacing is
 // too loose for a chat bubble at text-sm.
@@ -84,7 +84,10 @@ export default function ChatPanel({
 
       if (!res.ok) throw new Error(data?.error ?? "Something went wrong");
 
-      setMessages((prev) => [...prev, { role: "model", text: data.reply }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "model", text: data.reply, contextSaved: data.contextSaved },
+      ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -152,6 +155,11 @@ export default function ChatPanel({
                     </ReactMarkdown>
                   ) : (
                     turn.text
+                  )}
+                  {turn.contextSaved && (
+                    <p className="mt-1.5 text-xs text-emerald-400/80">
+                      ✓ Agency context saved
+                    </p>
                   )}
                 </div>
               ))}

@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import { systemPrompts } from "@/lib/systemPrompts";
+import { createClient } from "@/lib/supabase/server";
+import {
+  extractContextBlock,
+  formatContextForPrompt,
+  getAgencyContext,
+  saveAgencyContext,
+  SHARED_AGENT_BEHAVIOR,
+} from "@/lib/agencyContext";
 
 type ChatTurn = { role: "user" | "model"; text: string };
 
@@ -32,13 +40,26 @@ export async function POST(request: Request) {
     );
   }
 
-  const systemPrompt = systemPrompts[agentId];
-  if (!systemPrompt) {
+  const baseSystemPrompt = systemPrompts[agentId];
+  if (!baseSystemPrompt) {
     return NextResponse.json(
       { error: `Unknown agentId: ${agentId}` },
       { status: 404 }
     );
   }
+
+  // Middleware already requires a session for /api/*, so this user is real.
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const savedContext = await getAgencyContext(supabase, user.id);
+  const systemPrompt =
+    baseSystemPrompt + formatContextForPrompt(savedContext) + SHARED_AGENT_BEHAVIOR;
 
   const contents = [
     ...history.map((turn) => ({
@@ -66,15 +87,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const reply: string | undefined =
+  const rawReply: string | undefined =
     data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-  if (!reply) {
+  if (!rawReply) {
     return NextResponse.json(
       { error: "Gemini returned no response text" },
       { status: 502 }
     );
   }
 
-  return NextResponse.json({ reply });
+  const { text: reply, entries } = extractContextBlock(rawReply);
+  let contextSaved = false;
+  if (entries) {
+    await saveAgencyContext(supabase, user.id, entries);
+    contextSaved = true;
+  }
+
+  return NextResponse.json({ reply, contextSaved });
 }
