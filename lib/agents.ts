@@ -22,6 +22,7 @@ export const agentSections: AgentSection[] = [
       { id: "outreach-pilot", name: "Outreach Pilot", description: "Drafts and sequences cold outreach", emoji: "📨" },
       { id: "seo-strategist", name: "SEO Strategist", description: "Plans keyword and content strategy", emoji: "📈" },
       { id: "ad-optimizer", name: "Ad Optimizer", description: "Tunes paid campaign performance", emoji: "💸" },
+      { id: "sam", name: "Sam", description: "Sales expert and closer", emoji: "🤝" },
     ],
   },
   {
