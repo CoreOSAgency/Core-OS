@@ -1,9 +1,42 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import type { Agent } from "@/lib/agents";
 
 type ChatTurn = { role: "user" | "model"; text: string };
+
+// Tight, dark-theme-matched overrides — markdown's default block spacing is
+// too loose for a chat bubble at text-sm.
+const markdownComponents = {
+  p: (props: React.ComponentPropsWithoutRef<"p">) => (
+    <p className="mb-2 last:mb-0" {...props} />
+  ),
+  ul: (props: React.ComponentPropsWithoutRef<"ul">) => (
+    <ul className="mb-2 list-disc space-y-1 pl-4 last:mb-0" {...props} />
+  ),
+  ol: (props: React.ComponentPropsWithoutRef<"ol">) => (
+    <ol className="mb-2 list-decimal space-y-1 pl-4 last:mb-0" {...props} />
+  ),
+  h1: (props: React.ComponentPropsWithoutRef<"h1">) => (
+    <h1 className="mb-1 mt-2 text-base font-semibold first:mt-0" {...props} />
+  ),
+  h2: (props: React.ComponentPropsWithoutRef<"h2">) => (
+    <h2 className="mb-1 mt-2 text-sm font-semibold first:mt-0" {...props} />
+  ),
+  h3: (props: React.ComponentPropsWithoutRef<"h3">) => (
+    <h3 className="mb-1 mt-2 text-sm font-semibold first:mt-0" {...props} />
+  ),
+  strong: (props: React.ComponentPropsWithoutRef<"strong">) => (
+    <strong className="font-semibold" {...props} />
+  ),
+  code: (props: React.ComponentPropsWithoutRef<"code">) => (
+    <code className="rounded bg-black/30 px-1 py-0.5 text-xs" {...props} />
+  ),
+  a: (props: React.ComponentPropsWithoutRef<"a">) => (
+    <a className="underline hover:text-emerald-400" target="_blank" rel="noreferrer" {...props} />
+  ),
+};
 
 export default function ChatPanel({
   agent,
@@ -113,7 +146,13 @@ export default function ChatPanel({
                       : "bg-neutral-800 text-neutral-100"
                   }`}
                 >
-                  {turn.text}
+                  {turn.role === "model" ? (
+                    <ReactMarkdown components={markdownComponents}>
+                      {turn.text}
+                    </ReactMarkdown>
+                  ) : (
+                    turn.text
+                  )}
                 </div>
               ))}
 
