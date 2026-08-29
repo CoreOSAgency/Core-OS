@@ -18,6 +18,11 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [newWebsiteUrl, setNewWebsiteUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<Record<string, string> | null>(
+    null
+  );
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 
@@ -61,12 +66,35 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
       body: JSON.stringify({ name, description: newDescription.trim() || undefined }),
     });
     const data = await res.json();
-    if (res.ok && data.project) {
-      setProjects((prev) => [...prev, data.project]);
-      setActiveProject(data.project.id);
-      setNewName("");
-      setNewDescription("");
-      setCreating(false);
+    if (!res.ok || !data.project) return;
+
+    setProjects((prev) => [...prev, data.project]);
+    setActiveProject(data.project.id);
+    setCreating(false);
+
+    const websiteUrl = newWebsiteUrl.trim();
+    setNewName("");
+    setNewDescription("");
+    setNewWebsiteUrl("");
+
+    if (websiteUrl) {
+      await importFromWebsite(data.project.id, websiteUrl);
+    }
+  }
+
+  async function importFromWebsite(projectId: string, url: string) {
+    setImporting(true);
+    setImportPreview(null);
+    try {
+      const res = await fetch("/api/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, projectId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.extracted) setImportPreview(data.extracted);
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -147,6 +175,37 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
       </header>
 
       <div className="px-6 py-8 sm:px-10">
+        {importing && (
+          <p className="mb-4 text-sm text-neutral-400">Importing from website…</p>
+        )}
+        {importPreview && (
+          <div className="mb-6 rounded-xl border border-emerald-800 bg-emerald-950/30 p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-emerald-400">
+                Imported from website
+              </h3>
+              <button
+                onClick={() => setImportPreview(null)}
+                className="text-xs text-neutral-400 hover:text-neutral-200"
+              >
+                Dismiss
+              </button>
+            </div>
+            <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+              {Object.entries(importPreview)
+                .filter(([, value]) => value)
+                .map(([key, value]) => (
+                  <div key={key}>
+                    <dt className="text-xs uppercase tracking-wide text-neutral-500">
+                      {key}
+                    </dt>
+                    <dd className="truncate text-neutral-200">{value}</dd>
+                  </div>
+                ))}
+            </dl>
+          </div>
+        )}
+
         {loading ? (
           <p className="text-sm text-neutral-500">Loading…</p>
         ) : !activeProjectId || creating ? (
@@ -170,6 +229,13 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
                 onChange={(e) => setNewDescription(e.target.value)}
                 placeholder="Description (optional)"
                 rows={2}
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+              />
+              <input
+                value={newWebsiteUrl}
+                onChange={(e) => setNewWebsiteUrl(e.target.value)}
+                placeholder="Website URL (optional) — import brand, offer, tagline"
+                type="text"
                 className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500"
               />
               <div className="flex gap-2">
@@ -206,6 +272,7 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
         <ProjectMemoryPanel
           projectId={activeProjectId}
           projectName={activeProject?.name ?? ""}
+          onImport={(url) => importFromWebsite(activeProjectId, url)}
           onClose={() => setMemoryOpen(false)}
         />
       )}

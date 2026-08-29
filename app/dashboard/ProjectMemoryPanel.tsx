@@ -5,15 +5,19 @@ import { useEffect, useState } from "react";
 export default function ProjectMemoryPanel({
   projectId,
   projectName,
+  onImport,
   onClose,
 }: {
   projectId: string;
   projectName: string;
+  onImport: (url: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [context, setContext] = useState<Record<string, string> | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
 
   function load() {
     fetch(`/api/projects/${projectId}/context`)
@@ -42,6 +46,20 @@ export default function ProjectMemoryPanel({
     load();
   }
 
+  async function handleImport(e: React.FormEvent) {
+    e.preventDefault();
+    const url = importUrl.trim();
+    if (!url) return;
+    setImporting(true);
+    try {
+      await onImport(url);
+      setImportUrl("");
+      load();
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const entries = context ? Object.entries(context) : [];
 
   return (
@@ -61,6 +79,26 @@ export default function ProjectMemoryPanel({
             ✕
           </button>
         </div>
+
+        <form
+          onSubmit={handleImport}
+          className="flex gap-2 border-b border-neutral-800 px-5 py-3"
+        >
+          <input
+            value={importUrl}
+            onChange={(e) => setImportUrl(e.target.value)}
+            placeholder="Import from website URL…"
+            disabled={importing}
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500 disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={importing || !importUrl.trim()}
+            className="whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
+          >
+            {importing ? "Importing…" : "Import"}
+          </button>
+        </form>
 
         <div className="flex-1 space-y-2 overflow-y-auto px-5 py-4">
           {context === null && (
