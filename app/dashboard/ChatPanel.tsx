@@ -4,10 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Agent } from "@/lib/agents";
-import { countWords, extractTableData, hasStructuredContent } from "@/lib/markdownToBlocks";
+import {
+  extractTableData,
+  hasSlideStructure,
+  parseMarkdownToSlides,
+} from "@/lib/markdownToBlocks";
 import { downloadFileFromResponse } from "@/lib/download";
 
-type ChatTurn = { role: "user" | "model"; text: string; contextSaved?: boolean };
+type ChatTurn = {
+  role: "user" | "model";
+  text: string;
+  contextSaved?: boolean;
+  isDeliverable?: boolean;
+};
 
 const SPREADSHEET_COMMAND = /export as spreadsheet|create a spreadsheet/i;
 
@@ -117,7 +126,12 @@ export default function ChatPanel({
       const replyIndex = history.length + 1;
       setMessages((prev) => [
         ...prev,
-        { role: "model", text: data.reply, contextSaved: data.contextSaved },
+        {
+          role: "model",
+          text: data.reply,
+          contextSaved: data.contextSaved,
+          isDeliverable: data.isDeliverable,
+        },
       ]);
 
       if (SPREADSHEET_COMMAND.test(text)) {
@@ -170,6 +184,30 @@ export default function ChatPanel({
       await downloadFileFromResponse(res, "spreadsheet.xlsx");
     } catch {
       setError("Couldn't generate that spreadsheet — try again.");
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  async function downloadPresentation(index: number, text: string) {
+    if (!agent) return;
+    const key = `${index}-pptx`;
+    setDownloading(key);
+    try {
+      const res = await fetch("/api/generate/presentation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: deriveTitle(text, agent.name),
+          slides: parseMarkdownToSlides(text),
+          projectName,
+          agentName: agent.name,
+        }),
+      });
+      if (!res.ok) throw new Error("Download failed");
+      await downloadFileFromResponse(res, "presentation.pptx");
+    } catch {
+      setError("Couldn't generate that presentation — try again.");
     } finally {
       setDownloading(null);
     }
@@ -241,40 +279,50 @@ export default function ChatPanel({
                       ✓ Project memory saved
                     </p>
                   )}
-                  {turn.role === "model" &&
-                    (countWords(turn.text) > 300 || hasStructuredContent(turn.text)) && (
-                      <div className="mt-2 flex flex-wrap gap-2 border-t border-neutral-700/60 pt-2">
+                  {turn.role === "model" && turn.isDeliverable && (
+                    <div className="mt-2 flex flex-wrap gap-2 border-t border-neutral-700/60 pt-2">
+                      <button
+                        onClick={() => downloadDocument(i, turn.text, "pdf")}
+                        disabled={downloading === `${i}-pdf`}
+                        className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                      >
+                        {downloading === `${i}-pdf` ? "Generating…" : "⬇ Download as PDF"}
+                      </button>
+                      <button
+                        onClick={() => downloadDocument(i, turn.text, "docx")}
+                        disabled={downloading === `${i}-docx`}
+                        className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                      >
+                        {downloading === `${i}-docx` ? "Generating…" : "⬇ Download as Word Doc"}
+                      </button>
+                      {(() => {
+                        const tableData = extractTableData(turn.text);
+                        if (!tableData) return null;
+                        return (
+                          <button
+                            onClick={() => downloadSpreadsheet(i, tableData)}
+                            disabled={downloading === `${i}-xlsx`}
+                            className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                          >
+                            {downloading === `${i}-xlsx`
+                              ? "Generating…"
+                              : "⬇ Download as Spreadsheet"}
+                          </button>
+                        );
+                      })()}
+                      {hasSlideStructure(turn.text) && (
                         <button
-                          onClick={() => downloadDocument(i, turn.text, "pdf")}
-                          disabled={downloading === `${i}-pdf`}
+                          onClick={() => downloadPresentation(i, turn.text)}
+                          disabled={downloading === `${i}-pptx`}
                           className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
                         >
-                          {downloading === `${i}-pdf` ? "Generating…" : "⬇ Download as PDF"}
+                          {downloading === `${i}-pptx`
+                            ? "Generating…"
+                            : "⬇ Download as Presentation"}
                         </button>
-                        <button
-                          onClick={() => downloadDocument(i, turn.text, "docx")}
-                          disabled={downloading === `${i}-docx`}
-                          className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
-                        >
-                          {downloading === `${i}-docx` ? "Generating…" : "⬇ Download as Word Doc"}
-                        </button>
-                        {(() => {
-                          const tableData = extractTableData(turn.text);
-                          if (!tableData) return null;
-                          return (
-                            <button
-                              onClick={() => downloadSpreadsheet(i, tableData)}
-                              disabled={downloading === `${i}-xlsx`}
-                              className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
-                            >
-                              {downloading === `${i}-xlsx`
-                                ? "Generating…"
-                                : "⬇ Download as Spreadsheet"}
-                            </button>
-                          );
-                        })()}
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
 

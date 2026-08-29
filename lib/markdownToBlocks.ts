@@ -173,6 +173,45 @@ export function extractTableData(markdown: string): Record<string, string>[] | n
   return null;
 }
 
+export type Slide = { heading: string; bullets: string[] };
+
+// Headings become slide breaks; everything under a heading (paragraphs,
+// list items, table rows) becomes that slide's bullets.
+export function parseMarkdownToSlides(markdown: string): Slide[] {
+  const blocks = parseMarkdownToBlocks(markdown);
+  const slides: Slide[] = [];
+  let current: Slide | null = null;
+
+  const ensureCurrent = () => {
+    if (!current) current = { heading: "Overview", bullets: [] };
+    return current;
+  };
+
+  for (const block of blocks) {
+    if (block.type === "heading") {
+      if (current) slides.push(current);
+      current = { heading: stripInlineMarkdown(block.text), bullets: [] };
+    } else if (block.type === "bullet" || block.type === "numbered") {
+      ensureCurrent().bullets.push(...block.items.map(stripInlineMarkdown));
+    } else if (block.type === "paragraph") {
+      ensureCurrent().bullets.push(stripInlineMarkdown(block.text));
+    } else if (block.type === "table") {
+      ensureCurrent().bullets.push(...block.rows.map((r) => r.join(" — ")));
+    }
+  }
+  if (current) slides.push(current);
+
+  return slides.length > 0
+    ? slides
+    : [{ heading: "Overview", bullets: [stripInlineMarkdown(markdown).slice(0, 400)] }];
+}
+
+// Two or more headings reads as real slide structure, not just one aside
+// with a header stuck on it.
+export function hasSlideStructure(text: string): boolean {
+  return (text.match(/^#{1,3}\s/gm) ?? []).length >= 2;
+}
+
 export function hasStructuredContent(text: string): boolean {
   const lines = text.split("\n");
   const listLines = lines.filter((l) => /^\s*([-*]|\d+\.)\s+/.test(l)).length;

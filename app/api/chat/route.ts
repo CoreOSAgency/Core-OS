@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { systemPrompts } from "@/lib/systemPrompts";
 import { createClient } from "@/lib/supabase/server";
-import { extractContextBlock, SHARED_AGENT_BEHAVIOR } from "@/lib/agencyContext";
+import {
+  extractContextBlock,
+  extractDeliverableFlag,
+  SHARED_AGENT_BEHAVIOR,
+} from "@/lib/agencyContext";
 import {
   formatProjectContextForPrompt,
   getProjectContext,
@@ -108,12 +112,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const { text: reply, entries } = extractContextBlock(rawReply);
+  const { text: afterContext, entries } = extractContextBlock(rawReply);
   let contextSaved = false;
   if (entries) {
     await saveProjectContext(supabase, projectId, entries);
     contextSaved = true;
   }
 
-  return NextResponse.json({ reply, contextSaved });
+  const { text: reply, isDeliverable } = extractDeliverableFlag(afterContext);
+
+  return NextResponse.json({ reply, contextSaved, isDeliverable });
 }

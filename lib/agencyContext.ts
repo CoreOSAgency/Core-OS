@@ -41,10 +41,11 @@ export function formatContextForPrompt(context: Record<string, string>): string 
   );
 }
 
-// Marker Gemini wraps around a hidden JSON block of new/changed durable
-// facts, appended after its visible reply. Parsed out server-side — the
-// user never sees the block or the fact that it's there.
+// Markers Gemini wraps around hidden blocks appended after its visible
+// reply. Both are parsed out and stripped server-side — the user never
+// sees them or the fact that they're there.
 const CONTEXT_BLOCK_PATTERN = /<<<CONTEXT>>>([\s\S]*?)<<<END>>>/;
+const DELIVERABLE_PATTERN = /<<<DELIVERABLE>>>/;
 
 export function extractContextBlock(reply: string): {
   text: string;
@@ -65,6 +66,16 @@ export function extractContextBlock(reply: string): {
   return { text, entries: null };
 }
 
+// Strips the deliverable flag and reports whether it was present. Run this
+// AFTER extractContextBlock so the two markers don't interfere.
+export function extractDeliverableFlag(reply: string): {
+  text: string;
+  isDeliverable: boolean;
+} {
+  const isDeliverable = DELIVERABLE_PATTERN.test(reply);
+  return { text: reply.replace(DELIVERABLE_PATTERN, "").trim(), isDeliverable };
+}
+
 export const SHARED_AGENT_BEHAVIOR = `
 
 ---
@@ -76,4 +87,11 @@ Operating rules for this conversation:
 <<<CONTEXT>>>{"short_key_name":"concise value","another_key":"value"}<<<END>>>
 Only include it when there is something new or changed worth remembering. Never mention this block to the user or say you're saving anything — it is stripped out before they see your reply. Keep keys short, snake_case, and specific (e.g. "icp", "pricing_monthly", "primary_offer"). Never invent facts the user didn't actually say.
 
-3. Spreadsheet requests. If the user explicitly asks to "export as spreadsheet" or "create a spreadsheet" (or clearly asks for a list/data export), format your ENTIRE reply as a single clean markdown table with clear column headers — no prose before or after it, just the table. That table gets converted directly into a downloaded spreadsheet.`;
+3. Deliverables vs. advice — this distinction matters a lot, get it right. Most replies are conversation: strategy, coaching, an answer to a question, a breakdown, a "how do I..." — even when long, even when it has headers or bullet points or a table. That is NOT a deliverable. Never flag it as one just because it's long or structured.
+A reply is a deliverable ONLY when the user is clearly asking you to produce something they will download, save, or send elsewhere as its own artifact — a PDF, a one-pager, a call sheet, a checklist, a spreadsheet/list export, a slide deck, a contract, an application form. Usually the user says so directly ("build me...", "write the PDF...", "create a one-pager...", "export as...", "give me a spreadsheet of...", "make a deck on..."). If — and only if — that's what this reply is, end it with this exact marker on its own line, after everything else (after the context block if there is one):
+<<<DELIVERABLE>>>
+When in doubt, leave it off. A great, thorough, well-formatted answer to a question is not automatically a document — most of your replies should have no marker at all.
+
+4. Spreadsheet requests. If the user explicitly asks to "export as spreadsheet" or "create a spreadsheet" (or clearly asks for a list/data export), format your ENTIRE reply as a single clean markdown table with clear column headers — no prose before or after it, just the table — and flag it as a deliverable per rule 3.
+
+5. Presentation requests. If the user asks for a presentation, pitch deck, or slides, structure your reply as a series of "## " headings — one per slide — each followed by 3-6 short bullet points, no long paragraphs — and flag it as a deliverable per rule 3.`;

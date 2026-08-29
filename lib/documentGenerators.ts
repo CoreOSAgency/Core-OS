@@ -23,6 +23,20 @@ export type DocumentInput = {
   agentName?: string;
 };
 
+// pdf-lib's standard fonts only encode WinAnsi (~Latin-1 + a few extras) —
+// they throw on anything outside that (emoji, ⚠, arrows, etc.), which
+// Gemini's replies routinely include. Word/docx has no such limit, so this
+// is PDF-only. Every non-Latin-1 character — including each UTF-16
+// surrogate half of an emoji — is outside \x00-\xFF, so this one pass
+// strips emoji and other unencodable symbols without needing the `u` flag.
+function sanitizeForPdf(text: string): string {
+  return text.replace(/[^\x00-\xFF]/g, "");
+}
+
+function cleanPdfText(text: string): string {
+  return sanitizeForPdf(stripInlineMarkdown(text));
+}
+
 // CoreOS brand accent (emerald-500, same as the app UI) as 0–1 RGB.
 const ACCENT = rgb(0x10 / 255, 0xb9 / 255, 0x81 / 255);
 const INK = rgb(0.1, 0.1, 0.1);
@@ -91,7 +105,7 @@ export async function generatePdf({
   // Header
   page.drawText("CoreOS", { x: MARGIN, y, size: 10, font: bold, color: ACCENT });
   y -= 26;
-  drawLines(wrapText(title, bold, 20, CONTENT_WIDTH), 20, bold, INK, 6);
+  drawLines(wrapText(cleanPdfText(title), bold, 20, CONTENT_WIDTH), 20, bold, INK, 6);
   const subtitle = [agentName && `by ${agentName}`, projectName]
     .filter(Boolean)
     .join(" — ");
@@ -114,7 +128,7 @@ export async function generatePdf({
       ensureSpace(size + 14);
       y -= 6;
       drawLines(
-        wrapText(stripInlineMarkdown(block.text), bold, size, CONTENT_WIDTH),
+        wrapText(cleanPdfText(block.text), bold, size, CONTENT_WIDTH),
         size,
         bold,
         INK,
@@ -123,7 +137,7 @@ export async function generatePdf({
       y -= 2;
     } else if (block.type === "paragraph") {
       drawLines(
-        wrapText(stripInlineMarkdown(block.text), font, 11, CONTENT_WIDTH),
+        wrapText(cleanPdfText(block.text), font, 11, CONTENT_WIDTH),
         11,
         font,
         INK,
@@ -134,7 +148,7 @@ export async function generatePdf({
       block.items.forEach((item, idx) => {
         const prefix = block.type === "bullet" ? "•  " : `${idx + 1}.  `;
         const lines = wrapText(
-          stripInlineMarkdown(item),
+          cleanPdfText(item),
           font,
           11,
           CONTENT_WIDTH - 16
@@ -156,7 +170,7 @@ export async function generatePdf({
       const colWidth = CONTENT_WIDTH / block.headers.length;
       ensureSpace(20);
       block.headers.forEach((h, ci) => {
-        page.drawText(stripInlineMarkdown(h), {
+        page.drawText(cleanPdfText(h), {
           x: MARGIN + ci * colWidth,
           y,
           size: 10,
@@ -175,7 +189,7 @@ export async function generatePdf({
       for (const row of block.rows) {
         ensureSpace(16);
         row.forEach((cell, ci) => {
-          page.drawText(stripInlineMarkdown(cell), {
+          page.drawText(cleanPdfText(cell), {
             x: MARGIN + ci * colWidth,
             y,
             size: 10,
