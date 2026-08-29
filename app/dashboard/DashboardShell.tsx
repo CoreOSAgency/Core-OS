@@ -1,16 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Agent } from "@/lib/agents";
 import type { Project } from "@/lib/projects";
-import { signOut } from "../logout/actions";
 import AgencyOverview from "./AgencyOverview";
 import AgentGrid from "./AgentGrid";
 import ChatPanel from "./ChatPanel";
+import IconSidebar from "./IconSidebar";
 import OnboardingWizard from "./OnboardingWizard";
 import ProjectMemoryPanel from "./ProjectMemoryPanel";
+import SecondaryNav from "./SecondaryNav";
 
 const ACTIVE_PROJECT_KEY = "coreos_active_project_id";
+
+function extractDriveFolderId(input: string): string | null {
+  const trimmed = input.trim();
+  const match = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(trimmed)) return trimmed;
+  return null;
+}
 
 export default function DashboardShell({ userEmail }: { userEmail: string }) {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -21,13 +31,33 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newWebsiteUrl, setNewWebsiteUrl] = useState("");
+  const [newDriveFolderUrl, setNewDriveFolderUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<Record<string, string> | null>(
     null
   );
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [integrationBanner, setIntegrationBanner] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    fetch("/api/integrations")
+      .then((res) => res.json())
+      .then((data: { googleDrive?: boolean }) => setDriveConnected(!!data.googleDrive));
+  }, []);
+
+  useEffect(() => {
+    const status = searchParams.get("integration");
+    if (status === "connected") setIntegrationBanner("✓ Google Drive connected");
+    else if (status === "error") setIntegrationBanner("Couldn't connect Google Drive — try again.");
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("view") === "agency") setOverviewOpen(true);
+  }, [searchParams]);
 
   useEffect(() => {
     let stored: string | null = null;
@@ -76,12 +106,21 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
     setCreating(false);
 
     const websiteUrl = newWebsiteUrl.trim();
+    const driveFolderId = extractDriveFolderId(newDriveFolderUrl);
     setNewName("");
     setNewDescription("");
     setNewWebsiteUrl("");
+    setNewDriveFolderUrl("");
 
     if (websiteUrl) {
       await importFromWebsite(data.project.id, websiteUrl);
+    }
+    if (driveFolderId) {
+      await fetch(`/api/projects/${data.project.id}/context`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries: { google_drive_folder_id: driveFolderId } }),
+      });
     }
   }
 
@@ -103,189 +142,213 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
 
+  function goDashboard() {
+    setOverviewOpen(false);
+    setSelectedAgent(null);
+  }
+
+  function toggleAgency() {
+    setOverviewOpen((v) => !v);
+    setSelectedAgent(null);
+  }
+
+  function selectAgent(agent: Agent) {
+    setOverviewOpen(false);
+    setSelectedAgent(agent);
+  }
+
   return (
-    <main className="min-h-screen bg-neutral-950">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 px-6 py-4 sm:px-10">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-lg font-semibold text-neutral-100">CoreOS</h1>
-            <p className="text-xs text-neutral-500">{userEmail}</p>
+    <div className="flex h-screen bg-core-main">
+      <IconSidebar
+        onDashboard={goDashboard}
+        onAgency={toggleAgency}
+        agencyActive={overviewOpen}
+        userEmail={userEmail}
+      />
+      <SecondaryNav
+        selectedAgentId={selectedAgent?.id ?? null}
+        onSelectAgent={selectAgent}
+        overviewActive={overviewOpen}
+        onOverview={toggleAgency}
+      />
+
+      <main className="min-h-0 flex-1 overflow-y-auto bg-core-main">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-6 py-4">
+          <div className="relative">
+            {!loading && projects.length > 0 && (
+              <>
+                <button
+                  onClick={() => setSelectorOpen((v) => !v)}
+                  className="flex items-center gap-2 rounded-lg border border-white/10 bg-core-card px-3 py-1.5 text-sm text-neutral-200 hover:bg-white/5"
+                >
+                  📁 {activeProject?.name ?? "Select project"}
+                  <span className="text-neutral-500">▾</span>
+                </button>
+
+                {selectorOpen && (
+                  <div className="absolute left-0 z-30 mt-2 w-64 rounded-lg border border-white/10 bg-core-card shadow-xl">
+                    <ul className="max-h-64 overflow-y-auto py-1">
+                      {projects.map((p) => (
+                        <li key={p.id}>
+                          <button
+                            onClick={() => setActiveProject(p.id)}
+                            className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-white/5 ${
+                              p.id === activeProjectId
+                                ? "text-core-purple"
+                                : "text-neutral-200"
+                            }`}
+                          >
+                            {p.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="border-t border-white/10 p-1">
+                      <button
+                        onClick={() => {
+                          setSelectorOpen(false);
+                          setCreating(true);
+                        }}
+                        className="block w-full rounded px-3 py-2 text-left text-sm text-core-purple hover:bg-white/5"
+                      >
+                        + New project
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {!loading && projects.length > 0 && (
-            <div className="relative">
-              <button
-                onClick={() => setSelectorOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-800"
-              >
-                📁 {activeProject?.name ?? "Select project"}
-                <span className="text-neutral-500">▾</span>
-              </button>
-
-              {selectorOpen && (
-                <div className="absolute left-0 z-30 mt-2 w-64 rounded-lg border border-neutral-800 bg-neutral-900 shadow-xl">
-                  <ul className="max-h-64 overflow-y-auto py-1">
-                    {projects.map((p) => (
-                      <li key={p.id}>
-                        <button
-                          onClick={() => setActiveProject(p.id)}
-                          className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-neutral-800 ${
-                            p.id === activeProjectId
-                              ? "text-emerald-400"
-                              : "text-neutral-200"
-                          }`}
-                        >
-                          {p.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="border-t border-neutral-800 p-1">
-                    <button
-                      onClick={() => {
-                        setSelectorOpen(false);
-                        setCreating(true);
-                      }}
-                      className="block w-full rounded px-3 py-2 text-left text-sm text-emerald-400 hover:bg-neutral-800"
-                    >
-                      + New project
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
           {activeProjectId && (
-            <>
-              <button
-                onClick={() => setOverviewOpen((v) => !v)}
-                className={`rounded-lg border border-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-900 ${
-                  overviewOpen ? "bg-neutral-900 text-emerald-400" : "text-neutral-300"
-                }`}
-              >
-                Agency Overview
-              </button>
-              <button
-                onClick={() => setMemoryOpen(true)}
-                className="rounded-lg border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-900"
-              >
-                Project Memory
-              </button>
-            </>
-          )}
-          <form action={signOut}>
             <button
-              type="submit"
-              className="rounded-lg border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-900"
+              onClick={() => setMemoryOpen(true)}
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
             >
-              Sign out
+              Project Memory
             </button>
-          </form>
-        </div>
-      </header>
+          )}
+        </header>
 
-      <div className="px-6 py-8 sm:px-10">
-        {importing && (
-          <p className="mb-4 text-sm text-neutral-400">Importing from website…</p>
-        )}
-        {importPreview && (
-          <div className="mb-6 rounded-xl border border-emerald-800 bg-emerald-950/30 p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-emerald-400">
-                Imported from website
-              </h3>
+        <div className="px-6 py-8">
+          {integrationBanner && (
+            <div className="mb-4 flex items-center justify-between rounded-lg border border-white/10 bg-core-card px-4 py-2 text-sm text-neutral-300">
+              {integrationBanner}
               <button
-                onClick={() => setImportPreview(null)}
-                className="text-xs text-neutral-400 hover:text-neutral-200"
+                onClick={() => setIntegrationBanner(null)}
+                className="text-xs text-neutral-500 hover:text-neutral-200"
               >
                 Dismiss
               </button>
             </div>
-            <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-              {Object.entries(importPreview)
-                .filter(([, value]) => value)
-                .map(([key, value]) => (
-                  <div key={key}>
-                    <dt className="text-xs uppercase tracking-wide text-neutral-500">
-                      {key}
-                    </dt>
-                    <dd className="truncate text-neutral-200">{value}</dd>
-                  </div>
-                ))}
-            </dl>
-          </div>
-        )}
-
-        {loading ? (
-          <p className="text-sm text-neutral-500">Loading…</p>
-        ) : !activeProjectId && projects.length === 0 ? (
-          <OnboardingWizard
-            onComplete={(project) => {
-              setProjects((prev) => [...prev, project]);
-              setActiveProject(project.id);
-            }}
-          />
-        ) : !activeProjectId || creating ? (
-          <div className="mx-auto max-w-sm rounded-xl border border-neutral-800 bg-neutral-900/60 p-6">
-            <h2 className="font-semibold text-neutral-100">New project</h2>
-            <p className="mt-1 text-sm text-neutral-500">
-              Agents remember what you tell them per project.
-            </p>
-            <form onSubmit={createProject} className="mt-4 space-y-3">
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Project name"
-                required
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-              />
-              <textarea
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                placeholder="Description (optional)"
-                rows={2}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-              />
-              <input
-                value={newWebsiteUrl}
-                onChange={(e) => setNewWebsiteUrl(e.target.value)}
-                placeholder="Website URL (optional) — import brand, offer, tagline"
-                type="text"
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-              />
-              <div className="flex gap-2">
+          )}
+          {importing && (
+            <p className="mb-4 text-sm text-neutral-400">Importing from website…</p>
+          )}
+          {importPreview && (
+            <div className="mb-6 rounded-xl border border-core-purple/40 bg-core-purple/10 p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-core-purple">
+                  Imported from website
+                </h3>
                 <button
-                  type="submit"
-                  className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
+                  onClick={() => setImportPreview(null)}
+                  className="text-xs text-neutral-400 hover:text-neutral-200"
                 >
-                  Create project
+                  Dismiss
                 </button>
-                {projects.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setCreating(false)}
-                    className="rounded-lg border border-neutral-800 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-900"
-                  >
-                    Cancel
-                  </button>
-                )}
               </div>
-            </form>
-          </div>
-        ) : overviewOpen ? (
-          <AgencyOverview projectId={activeProjectId} projectName={activeProject?.name ?? ""} />
-        ) : (
-          <AgentGrid onSelect={setSelectedAgent} />
-        )}
-      </div>
+              <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                {Object.entries(importPreview)
+                  .filter(([, value]) => value)
+                  .map(([key, value]) => (
+                    <div key={key}>
+                      <dt className="text-xs uppercase tracking-wide text-neutral-500">
+                        {key}
+                      </dt>
+                      <dd className="truncate text-neutral-200">{value}</dd>
+                    </div>
+                  ))}
+              </dl>
+            </div>
+          )}
+
+          {loading ? (
+            <p className="text-sm text-neutral-500">Loading…</p>
+          ) : !activeProjectId && projects.length === 0 ? (
+            <OnboardingWizard
+              onComplete={(project) => {
+                setProjects((prev) => [...prev, project]);
+                setActiveProject(project.id);
+              }}
+            />
+          ) : !activeProjectId || creating ? (
+            <div className="mx-auto max-w-sm rounded-xl border border-white/10 bg-core-card p-6">
+              <h2 className="font-semibold text-neutral-100">New project</h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Agents remember what you tell them per project.
+              </p>
+              <form onSubmit={createProject} className="mt-4 space-y-3">
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Project name"
+                  required
+                  className="w-full rounded-lg border border-white/10 bg-core-main px-3 py-2 text-sm text-neutral-100 outline-none focus:border-core-purple"
+                />
+                <textarea
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="Description (optional)"
+                  rows={2}
+                  className="w-full rounded-lg border border-white/10 bg-core-main px-3 py-2 text-sm text-neutral-100 outline-none focus:border-core-purple"
+                />
+                <input
+                  value={newWebsiteUrl}
+                  onChange={(e) => setNewWebsiteUrl(e.target.value)}
+                  placeholder="Website URL (optional) — import brand, offer, tagline"
+                  type="text"
+                  className="w-full rounded-lg border border-white/10 bg-core-main px-3 py-2 text-sm text-neutral-100 outline-none focus:border-core-purple"
+                />
+                <input
+                  value={newDriveFolderUrl}
+                  onChange={(e) => setNewDriveFolderUrl(e.target.value)}
+                  placeholder="Google Drive folder URL (optional) — save generated docs here"
+                  type="text"
+                  className="w-full rounded-lg border border-white/10 bg-core-main px-3 py-2 text-sm text-neutral-100 outline-none focus:border-core-purple"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-white hover:bg-core-purple/80"
+                  >
+                    Create project
+                  </button>
+                  {projects.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setCreating(false)}
+                      className="rounded-lg border border-white/10 px-4 py-2 text-sm text-neutral-300 hover:bg-white/5"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          ) : overviewOpen ? (
+            <AgencyOverview projectId={activeProjectId} projectName={activeProject?.name ?? ""} />
+          ) : (
+            <AgentGrid onSelect={selectAgent} />
+          )}
+        </div>
+      </main>
 
       <ChatPanel
         agent={selectedAgent}
         projectId={activeProjectId}
         projectName={activeProject?.name ?? null}
+        driveConnected={driveConnected}
         onClose={() => setSelectedAgent(null)}
       />
 
@@ -297,6 +360,6 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
           onClose={() => setMemoryOpen(false)}
         />
       )}
-    </main>
+    </div>
   );
 }

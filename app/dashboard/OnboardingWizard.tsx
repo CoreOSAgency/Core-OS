@@ -22,6 +22,7 @@ export default function OnboardingWizard({
   const [market, setMarket] = useState("");
   const [goals, setGoals] = useState("");
   const [ghlWebhookUrl, setGhlWebhookUrl] = useState("");
+  const [driveFolderUrl, setDriveFolderUrl] = useState("");
 
   async function finish() {
     setSubmitting(true);
@@ -47,6 +48,13 @@ export default function OnboardingWizard({
         });
       }
 
+      const driveFolderMatch = driveFolderUrl.trim().match(/\/folders\/([a-zA-Z0-9_-]+)/);
+      const driveFolderId = driveFolderMatch
+        ? driveFolderMatch[1]
+        : /^[a-zA-Z0-9_-]{10,}$/.test(driveFolderUrl.trim())
+          ? driveFolderUrl.trim()
+          : "";
+
       await fetch(`/api/projects/${project.id}/context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -59,6 +67,7 @@ export default function OnboardingWizard({
             market,
             goals,
             ghl_webhook_url: ghlWebhookUrl,
+            google_drive_folder_id: driveFolderId,
           },
         }),
       });
@@ -185,9 +194,19 @@ export default function OnboardingWizard({
                 className={inputClass}
               />
             </div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-3 text-xs text-neutral-500">
-              Google Drive — coming soon. You can connect it later from the Integrations
-              section once it&apos;s available.
+            <div>
+              <label className="mb-1 block text-xs text-neutral-500">
+                Google Drive folder URL (optional) — save generated docs here
+              </label>
+              <input
+                value={driveFolderUrl}
+                onChange={(e) => setDriveFolderUrl(e.target.value)}
+                placeholder="https://drive.google.com/drive/folders/…"
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-neutral-600">
+                Connect Google Drive itself from the Integrations menu first.
+              </p>
             </div>
           </>
         )}

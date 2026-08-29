@@ -38,6 +38,38 @@ function relativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
+function DriveButton({
+  downloading,
+  link,
+  onClick,
+}: {
+  downloading: boolean;
+  link?: string;
+  onClick: () => void;
+}) {
+  if (link) {
+    return (
+      <a
+        href={link}
+        target="_blank"
+        rel="noreferrer"
+        className="rounded border border-emerald-700 px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-500/10"
+      >
+        ✓ Open in Drive
+      </a>
+    );
+  }
+  return (
+    <button
+      onClick={onClick}
+      disabled={downloading}
+      className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+    >
+      {downloading ? "Saving…" : "☁ Save to Drive"}
+    </button>
+  );
+}
+
 // Tight, dark-theme-matched overrides — markdown's default block spacing is
 // too loose for a chat bubble at text-sm.
 const markdownComponents = {
@@ -84,15 +116,19 @@ const markdownComponents = {
   ),
 };
 
+type DriveFileType = "pdf" | "docx" | "xlsx" | "pptx";
+
 export default function ChatPanel({
   agent,
   projectId,
   projectName,
+  driveConnected,
   onClose,
 }: {
   agent: Agent | null;
   projectId: string | null;
   projectName: string | null;
+  driveConnected: boolean;
   onClose: () => void;
 }) {
   const isOpen = agent !== null;
@@ -105,6 +141,7 @@ export default function ChatPanel({
   const [loadingChat, setLoadingChat] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [driveLinks, setDriveLinks] = useState<Record<string, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Opening a different agent — or a different project — resumes that
@@ -116,6 +153,7 @@ export default function ChatPanel({
     setHistoryList(null);
     setMessages([]);
     setConversationId(null);
+    setDriveLinks({});
 
     if (!agent || !projectId) return;
 
@@ -284,6 +322,37 @@ export default function ChatPanel({
     }
   }
 
+  async function saveToDrive(index: number, type: DriveFileType, text: string) {
+    if (!agent) return;
+    const key = `${index}-${type}-drive`;
+    setDownloading(key);
+    try {
+      const body: Record<string, unknown> = {
+        type,
+        title: deriveTitle(text, agent.name),
+        projectName,
+        agentName: agent.name,
+        projectId,
+      };
+      if (type === "pdf" || type === "docx") body.content = text;
+      if (type === "xlsx") body.data = extractTableData(text);
+      if (type === "pptx") body.slides = parseMarkdownToSlides(text);
+
+      const res = await fetch("/api/generate/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Save to Drive failed");
+      setDriveLinks((prev) => ({ ...prev, [key]: data.webViewLink }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save to Drive — try again.");
+    } finally {
+      setDownloading(null);
+    }
+  }
+
   return (
     <>
       {/* Backdrop */}
@@ -296,27 +365,40 @@ export default function ChatPanel({
 
       {/* Panel */}
       <aside
-        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-neutral-800 bg-neutral-900 shadow-2xl transition-transform duration-300 ease-out ${
+        className={`fixed right-0 top-0 z-50 flex h-full w-[380px] max-w-full flex-col border-l border-white/10 bg-core-nav shadow-2xl transition-transform duration-300 ease-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         {agent && (
           <>
-            <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">{agent.emoji}</span>
                 <div>
-                  <h2 className="font-semibold text-neutral-100">{agent.name}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-semibold text-neutral-100">{agent.name}</h2>
+                    <span className="rounded-full bg-core-purple/15 px-2 py-0.5 text-[10px] font-medium text-core-purple">
+                      Agency
+                    </span>
+                  </div>
                   <p className="text-xs text-neutral-400">{agent.description}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 <button
+                  onClick={startNewChat}
+                  aria-label="New chat"
+                  title="New chat"
+                  className="rounded-lg p-2 text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
+                >
+                  ✎
+                </button>
+                <button
                   onClick={() => (showHistory ? setShowHistory(false) : openHistory())}
                   aria-label="Chat history"
                   title="Chat history"
-                  className={`rounded-lg p-2 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100 ${
-                    showHistory ? "bg-neutral-800 text-neutral-100" : ""
+                  className={`rounded-lg p-2 text-neutral-400 hover:bg-white/5 hover:text-neutral-100 ${
+                    showHistory ? "bg-white/5 text-neutral-100" : ""
                   }`}
                 >
                   🕘
@@ -324,7 +406,7 @@ export default function ChatPanel({
                 <button
                   onClick={onClose}
                   aria-label="Close chat"
-                  className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+                  className="rounded-lg p-2 text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
                 >
                   ✕
                 </button>
@@ -335,7 +417,7 @@ export default function ChatPanel({
               <div className="flex-1 overflow-y-auto px-5 py-4">
                 <button
                   onClick={startNewChat}
-                  className="mb-3 w-full rounded-lg border border-emerald-600 px-3 py-2 text-left text-sm font-medium text-emerald-400 hover:bg-emerald-500/10"
+                  className="mb-3 w-full rounded-lg border border-core-purple px-3 py-2 text-left text-sm font-medium text-core-purple hover:bg-core-purple/10"
                 >
                   + New chat
                 </button>
@@ -351,9 +433,9 @@ export default function ChatPanel({
                     <li key={c.id}>
                       <button
                         onClick={() => loadConversation(c.id)}
-                        className={`block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-neutral-800 ${
+                        className={`block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5 ${
                           c.id === conversationId
-                            ? "bg-neutral-800 text-neutral-100"
+                            ? "bg-white/5 text-neutral-100"
                             : "text-neutral-300"
                         }`}
                       >
@@ -382,8 +464,8 @@ export default function ChatPanel({
                     key={i}
                     className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                       turn.role === "user"
-                        ? "ml-auto bg-emerald-600 text-white"
-                        : "bg-neutral-800 text-neutral-100"
+                        ? "ml-auto bg-core-purple text-white"
+                        : "bg-core-card text-neutral-100"
                     }`}
                   >
                     {turn.role === "model" ? (
@@ -399,7 +481,7 @@ export default function ChatPanel({
                       </p>
                     )}
                     {turn.role === "model" && turn.isDeliverable && (
-                      <div className="mt-2 flex flex-wrap gap-2 border-t border-neutral-700/60 pt-2">
+                      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-neutral-700/60 pt-2">
                         <button
                           onClick={() => downloadDocument(i, turn.text, "pdf")}
                           disabled={downloading === `${i}-pdf`}
@@ -407,6 +489,13 @@ export default function ChatPanel({
                         >
                           {downloading === `${i}-pdf` ? "Generating…" : "⬇ Download as PDF"}
                         </button>
+                        {driveConnected && (
+                          <DriveButton
+                            downloading={downloading === `${i}-pdf-drive`}
+                            link={driveLinks[`${i}-pdf-drive`]}
+                            onClick={() => saveToDrive(i, "pdf", turn.text)}
+                          />
+                        )}
                         <button
                           onClick={() => downloadDocument(i, turn.text, "docx")}
                           disabled={downloading === `${i}-docx`}
@@ -414,31 +503,56 @@ export default function ChatPanel({
                         >
                           {downloading === `${i}-docx` ? "Generating…" : "⬇ Download as Word Doc"}
                         </button>
+                        {driveConnected && (
+                          <DriveButton
+                            downloading={downloading === `${i}-docx-drive`}
+                            link={driveLinks[`${i}-docx-drive`]}
+                            onClick={() => saveToDrive(i, "docx", turn.text)}
+                          />
+                        )}
                         {(() => {
                           const tableData = extractTableData(turn.text);
                           if (!tableData) return null;
                           return (
-                            <button
-                              onClick={() => downloadSpreadsheet(i, tableData)}
-                              disabled={downloading === `${i}-xlsx`}
-                              className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
-                            >
-                              {downloading === `${i}-xlsx`
-                                ? "Generating…"
-                                : "⬇ Download as Spreadsheet"}
-                            </button>
+                            <>
+                              <button
+                                onClick={() => downloadSpreadsheet(i, tableData)}
+                                disabled={downloading === `${i}-xlsx`}
+                                className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                              >
+                                {downloading === `${i}-xlsx`
+                                  ? "Generating…"
+                                  : "⬇ Download as Spreadsheet"}
+                              </button>
+                              {driveConnected && (
+                                <DriveButton
+                                  downloading={downloading === `${i}-xlsx-drive`}
+                                  link={driveLinks[`${i}-xlsx-drive`]}
+                                  onClick={() => saveToDrive(i, "xlsx", turn.text)}
+                                />
+                              )}
+                            </>
                           );
                         })()}
                         {hasSlideStructure(turn.text) && (
-                          <button
-                            onClick={() => downloadPresentation(i, turn.text)}
-                            disabled={downloading === `${i}-pptx`}
-                            className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
-                          >
-                            {downloading === `${i}-pptx`
-                              ? "Generating…"
-                              : "⬇ Download as Presentation"}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => downloadPresentation(i, turn.text)}
+                              disabled={downloading === `${i}-pptx`}
+                              className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                            >
+                              {downloading === `${i}-pptx`
+                                ? "Generating…"
+                                : "⬇ Download as Presentation"}
+                            </button>
+                            {driveConnected && (
+                              <DriveButton
+                                downloading={downloading === `${i}-pptx-drive`}
+                                link={driveLinks[`${i}-pptx-drive`]}
+                                onClick={() => saveToDrive(i, "pptx", turn.text)}
+                              />
+                            )}
+                          </>
                         )}
                       </div>
                     )}
@@ -446,7 +560,7 @@ export default function ChatPanel({
                 ))}
 
                 {sending && (
-                  <div className="max-w-[85%] rounded-lg bg-neutral-800 px-3 py-2 text-sm text-neutral-400">
+                  <div className="max-w-[85%] rounded-lg bg-core-card px-3 py-2 text-sm text-neutral-400">
                     {agent.name} is typing…
                   </div>
                 )}
@@ -456,24 +570,44 @@ export default function ChatPanel({
             )}
 
             {!showHistory && (
-              <form onSubmit={sendMessage} className="border-t border-neutral-800 p-4">
-                <div className="flex items-center gap-2">
+              <div className="border-t border-white/10 p-4">
+                <form onSubmit={sendMessage} className="flex items-center gap-2">
+                  {/* ponytail: paperclip/mic are decorative — no attachment or voice backend yet */}
+                  <button
+                    type="button"
+                    disabled
+                    title="Attachments coming soon"
+                    className="flex h-9 w-9 shrink-0 cursor-default items-center justify-center rounded-lg text-neutral-600"
+                  >
+                    📎
+                  </button>
                   <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     disabled={sending}
                     placeholder={`Message ${agent.name}…`}
-                    className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500 disabled:opacity-60"
+                    className="w-full rounded-lg border border-white/10 bg-core-main px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-core-purple disabled:opacity-60"
                   />
+                  <button
+                    type="button"
+                    disabled
+                    title="Voice input coming soon"
+                    className="flex h-9 w-9 shrink-0 cursor-default items-center justify-center rounded-lg text-neutral-600"
+                  >
+                    🎤
+                  </button>
                   <button
                     type="submit"
                     disabled={sending || !input.trim()}
-                    className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
+                    className="shrink-0 rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-white transition hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
                   >
                     Send
                   </button>
-                </div>
-              </form>
+                </form>
+                <p className="mt-2 text-center text-[11px] text-neutral-600">
+                  {agent.name} has your whole agency context loaded.
+                </p>
+              </div>
             )}
           </>
         )}

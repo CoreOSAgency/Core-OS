@@ -11,6 +11,11 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        "core-icon": "#0a0a0f",
+        "core-nav": "#0f0f1a",
+        "core-main": "#0d0d18",
+        "core-card": "#141420",
+        "core-purple": "#7c3aed",
       },
     },
   },
