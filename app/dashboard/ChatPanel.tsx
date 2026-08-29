@@ -40,9 +40,11 @@ const markdownComponents = {
 
 export default function ChatPanel({
   agent,
+  projectId,
   onClose,
 }: {
   agent: Agent | null;
+  projectId: string | null;
   onClose: () => void;
 }) {
   const isOpen = agent !== null;
@@ -52,12 +54,13 @@ export default function ChatPanel({
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Reset the conversation whenever a different agent is opened.
+  // Reset the conversation whenever a different agent — or a different
+  // project — is opened. Switching projects means different context.
   useEffect(() => {
     setMessages([]);
     setInput("");
     setError(null);
-  }, [agent?.id]);
+  }, [agent?.id, projectId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -66,7 +69,7 @@ export default function ChatPanel({
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
     const text = input.trim();
-    if (!text || !agent || sending) return;
+    if (!text || !agent || !projectId || sending) return;
 
     const history = messages;
     setMessages([...history, { role: "user", text }]);
@@ -78,7 +81,7 @@ export default function ChatPanel({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId: agent.id, message: text, history }),
+        body: JSON.stringify({ agentId: agent.id, message: text, projectId, history }),
       });
       const data = await res.json();
 
@@ -158,7 +161,7 @@ export default function ChatPanel({
                   )}
                   {turn.contextSaved && (
                     <p className="mt-1.5 text-xs text-emerald-400/80">
-                      ✓ Agency context saved
+                      ✓ Project memory saved
                     </p>
                   )}
                 </div>

@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { systemPrompts } from "@/lib/systemPrompts";
 import { createClient } from "@/lib/supabase/server";
+import { extractContextBlock, SHARED_AGENT_BEHAVIOR } from "@/lib/agencyContext";
 import {
-  extractContextBlock,
-  formatContextForPrompt,
-  getAgencyContext,
-  saveAgencyContext,
-  SHARED_AGENT_BEHAVIOR,
-} from "@/lib/agencyContext";
+  formatProjectContextForPrompt,
+  getProjectContext,
+  saveProjectContext,
+} from "@/lib/projects";
 
 type ChatTurn = { role: "user" | "model"; text: string };
 
@@ -31,11 +30,18 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const agentId: unknown = body?.agentId;
   const message: unknown = body?.message;
+  const projectId: unknown = body?.projectId;
   const history: ChatTurn[] = Array.isArray(body?.history) ? body.history : [];
 
   if (typeof agentId !== "string" || typeof message !== "string" || !message.trim()) {
     return NextResponse.json(
       { error: "agentId and message are required" },
+      { status: 400 }
+    );
+  }
+  if (typeof projectId !== "string" || !projectId) {
+    return NextResponse.json(
+      { error: "projectId is required — select or create a project first" },
       { status: 400 }
     );
   }
@@ -57,9 +63,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const savedContext = await getAgencyContext(supabase, user.id);
+  // RLS scopes this to projects the caller owns — a foreign/unknown
+  // projectId just yields empty context rather than needing a separate
+  // ownership check here.
+  const savedContext = await getProjectContext(supabase, projectId);
   const systemPrompt =
-    baseSystemPrompt + formatContextForPrompt(savedContext) + SHARED_AGENT_BEHAVIOR;
+    baseSystemPrompt +
+    formatProjectContextForPrompt(savedContext) +
+    SHARED_AGENT_BEHAVIOR;
 
   const contents = [
     ...history.map((turn) => ({
@@ -100,7 +111,7 @@ export async function POST(request: Request) {
   const { text: reply, entries } = extractContextBlock(rawReply);
   let contextSaved = false;
   if (entries) {
-    await saveAgencyContext(supabase, user.id, entries);
+    await saveProjectContext(supabase, projectId, entries);
     contextSaved = true;
   }
 
