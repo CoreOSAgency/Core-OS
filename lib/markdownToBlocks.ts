@@ -134,6 +134,45 @@ export function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+// "Label: value, Label2: value2" — the shape agents fall into for lead
+// lists etc. when they don't reach for an actual markdown table.
+function parseListItemFields(item: string): Record<string, string> | null {
+  const pattern = /([A-Za-z][A-Za-z0-9 ]{1,30}):\s*([^,]+?)(?:,\s*(?=[A-Za-z][A-Za-z0-9 ]{1,30}:)|$)/g;
+  const fields: Record<string, string> = {};
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(item))) {
+    fields[match[1].trim()] = match[2].trim();
+  }
+  return Object.keys(fields).length >= 2 ? fields : null;
+}
+
+// Pulls tabular data out of a reply for the spreadsheet export: a real
+// markdown table first, falling back to a bullet/numbered list where every
+// item shares the same "Label: value" fields.
+export function extractTableData(markdown: string): Record<string, string>[] | null {
+  const blocks = parseMarkdownToBlocks(markdown);
+
+  const table = blocks.find((b) => b.type === "table" && b.rows.length > 0);
+  if (table && table.type === "table") {
+    return table.rows.map((row) =>
+      Object.fromEntries(table.headers.map((h, i) => [h || `Column ${i + 1}`, row[i] ?? ""]))
+    );
+  }
+
+  const list = blocks.find(
+    (b) => (b.type === "bullet" || b.type === "numbered") && b.items.length >= 3
+  );
+  if (list && (list.type === "bullet" || list.type === "numbered")) {
+    const parsed = list.items.map(parseListItemFields);
+    if (parsed.every((p): p is Record<string, string> => p !== null)) {
+      const keyCount = Object.keys(parsed[0]).length;
+      if (parsed.every((p) => Object.keys(p).length === keyCount)) return parsed;
+    }
+  }
+
+  return null;
+}
+
 export function hasStructuredContent(text: string): boolean {
   const lines = text.split("\n");
   const listLines = lines.filter((l) => /^\s*([-*]|\d+\.)\s+/.test(l)).length;

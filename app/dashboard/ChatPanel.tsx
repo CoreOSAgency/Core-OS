@@ -2,11 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Agent } from "@/lib/agents";
-import { countWords, hasStructuredContent } from "@/lib/markdownToBlocks";
+import { countWords, extractTableData, hasStructuredContent } from "@/lib/markdownToBlocks";
 import { downloadFileFromResponse } from "@/lib/download";
 
 type ChatTurn = { role: "user" | "model"; text: string; contextSaved?: boolean };
+
+const SPREADSHEET_COMMAND = /export as spreadsheet|create a spreadsheet/i;
 
 function deriveTitle(text: string, agentName: string): string {
   const heading = text.match(/^#{1,3}\s+(.*)$/m);
@@ -42,6 +45,20 @@ const markdownComponents = {
   ),
   a: (props: React.ComponentPropsWithoutRef<"a">) => (
     <a className="underline hover:text-emerald-400" target="_blank" rel="noreferrer" {...props} />
+  ),
+  table: (props: React.ComponentPropsWithoutRef<"table">) => (
+    <div className="mb-2 overflow-x-auto">
+      <table className="w-full border-collapse text-xs" {...props} />
+    </div>
+  ),
+  th: (props: React.ComponentPropsWithoutRef<"th">) => (
+    <th
+      className="border border-neutral-600 bg-neutral-900 px-2 py-1 text-left font-semibold"
+      {...props}
+    />
+  ),
+  td: (props: React.ComponentPropsWithoutRef<"td">) => (
+    <td className="border border-neutral-700 px-2 py-1" {...props} />
   ),
 };
 
@@ -97,10 +114,16 @@ export default function ChatPanel({
 
       if (!res.ok) throw new Error(data?.error ?? "Something went wrong");
 
+      const replyIndex = history.length + 1;
       setMessages((prev) => [
         ...prev,
         { role: "model", text: data.reply, contextSaved: data.contextSaved },
       ]);
+
+      if (SPREADSHEET_COMMAND.test(text)) {
+        const tableData = extractTableData(data.reply);
+        if (tableData) downloadSpreadsheet(replyIndex, tableData);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -128,6 +151,25 @@ export default function ChatPanel({
       await downloadFileFromResponse(res, `document.${type}`);
     } catch {
       setError("Couldn't generate that document — try again.");
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  async function downloadSpreadsheet(index: number, data: Record<string, string>[]) {
+    if (!agent) return;
+    const key = `${index}-xlsx`;
+    setDownloading(key);
+    try {
+      const res = await fetch("/api/generate/spreadsheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: `${agent.name} export`, data }),
+      });
+      if (!res.ok) throw new Error("Download failed");
+      await downloadFileFromResponse(res, "spreadsheet.xlsx");
+    } catch {
+      setError("Couldn't generate that spreadsheet — try again.");
     } finally {
       setDownloading(null);
     }
@@ -188,7 +230,7 @@ export default function ChatPanel({
                   }`}
                 >
                   {turn.role === "model" ? (
-                    <ReactMarkdown components={markdownComponents}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                       {turn.text}
                     </ReactMarkdown>
                   ) : (
@@ -216,6 +258,21 @@ export default function ChatPanel({
                         >
                           {downloading === `${i}-docx` ? "Generating…" : "⬇ Download as Word Doc"}
                         </button>
+                        {(() => {
+                          const tableData = extractTableData(turn.text);
+                          if (!tableData) return null;
+                          return (
+                            <button
+                              onClick={() => downloadSpreadsheet(i, tableData)}
+                              disabled={downloading === `${i}-xlsx`}
+                              className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                            >
+                              {downloading === `${i}-xlsx`
+                                ? "Generating…"
+                                : "⬇ Download as Spreadsheet"}
+                            </button>
+                          );
+                        })()}
                       </div>
                     )}
                 </div>
