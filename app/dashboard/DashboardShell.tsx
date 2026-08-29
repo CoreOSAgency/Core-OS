@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import type { Agent } from "@/lib/agents";
 import type { Project } from "@/lib/projects";
 import { signOut } from "../logout/actions";
+import AgencyOverview from "./AgencyOverview";
 import AgentGrid from "./AgentGrid";
 import ChatPanel from "./ChatPanel";
+import OnboardingWizard from "./OnboardingWizard";
 import ProjectMemoryPanel from "./ProjectMemoryPanel";
 
 const ACTIVE_PROJECT_KEY = "coreos_active_project_id";
@@ -24,6 +26,7 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
     null
   );
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [overviewOpen, setOverviewOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 
   useEffect(() => {
@@ -156,12 +159,22 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
 
         <div className="flex items-center gap-2">
           {activeProjectId && (
-            <button
-              onClick={() => setMemoryOpen(true)}
-              className="rounded-lg border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-900"
-            >
-              Project Memory
-            </button>
+            <>
+              <button
+                onClick={() => setOverviewOpen((v) => !v)}
+                className={`rounded-lg border border-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-900 ${
+                  overviewOpen ? "bg-neutral-900 text-emerald-400" : "text-neutral-300"
+                }`}
+              >
+                Agency Overview
+              </button>
+              <button
+                onClick={() => setMemoryOpen(true)}
+                className="rounded-lg border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-900"
+              >
+                Project Memory
+              </button>
+            </>
           )}
           <form action={signOut}>
             <button
@@ -208,11 +221,16 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
 
         {loading ? (
           <p className="text-sm text-neutral-500">Loading…</p>
+        ) : !activeProjectId && projects.length === 0 ? (
+          <OnboardingWizard
+            onComplete={(project) => {
+              setProjects((prev) => [...prev, project]);
+              setActiveProject(project.id);
+            }}
+          />
         ) : !activeProjectId || creating ? (
           <div className="mx-auto max-w-sm rounded-xl border border-neutral-800 bg-neutral-900/60 p-6">
-            <h2 className="font-semibold text-neutral-100">
-              {projects.length === 0 ? "Create your first project" : "New project"}
-            </h2>
+            <h2 className="font-semibold text-neutral-100">New project</h2>
             <p className="mt-1 text-sm text-neutral-500">
               Agents remember what you tell them per project.
             </p>
@@ -257,6 +275,8 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
               </div>
             </form>
           </div>
+        ) : overviewOpen ? (
+          <AgencyOverview projectId={activeProjectId} projectName={activeProject?.name ?? ""} />
         ) : (
           <AgentGrid onSelect={setSelectedAgent} />
         )}
