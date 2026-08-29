@@ -3,8 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Agent } from "@/lib/agents";
+import { countWords, hasStructuredContent } from "@/lib/markdownToBlocks";
+import { downloadFileFromResponse } from "@/lib/download";
 
 type ChatTurn = { role: "user" | "model"; text: string; contextSaved?: boolean };
+
+function deriveTitle(text: string, agentName: string): string {
+  const heading = text.match(/^#{1,3}\s+(.*)$/m);
+  return heading ? heading[1].trim() : `${agentName} notes`;
+}
 
 // Tight, dark-theme-matched overrides — markdown's default block spacing is
 // too loose for a chat bubble at text-sm.
@@ -41,10 +48,12 @@ const markdownComponents = {
 export default function ChatPanel({
   agent,
   projectId,
+  projectName,
   onClose,
 }: {
   agent: Agent | null;
   projectId: string | null;
+  projectName: string | null;
   onClose: () => void;
 }) {
   const isOpen = agent !== null;
@@ -52,6 +61,7 @@ export default function ChatPanel({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Reset the conversation whenever a different agent — or a different
@@ -95,6 +105,31 @@ export default function ChatPanel({
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function downloadDocument(index: number, text: string, type: "pdf" | "docx") {
+    if (!agent) return;
+    const key = `${index}-${type}`;
+    setDownloading(key);
+    try {
+      const res = await fetch("/api/generate/document", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          title: deriveTitle(text, agent.name),
+          content: text,
+          projectName,
+          agentName: agent.name,
+        }),
+      });
+      if (!res.ok) throw new Error("Download failed");
+      await downloadFileFromResponse(res, `document.${type}`);
+    } catch {
+      setError("Couldn't generate that document — try again.");
+    } finally {
+      setDownloading(null);
     }
   }
 
@@ -164,6 +199,25 @@ export default function ChatPanel({
                       ✓ Project memory saved
                     </p>
                   )}
+                  {turn.role === "model" &&
+                    (countWords(turn.text) > 300 || hasStructuredContent(turn.text)) && (
+                      <div className="mt-2 flex flex-wrap gap-2 border-t border-neutral-700/60 pt-2">
+                        <button
+                          onClick={() => downloadDocument(i, turn.text, "pdf")}
+                          disabled={downloading === `${i}-pdf`}
+                          className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                        >
+                          {downloading === `${i}-pdf` ? "Generating…" : "⬇ Download as PDF"}
+                        </button>
+                        <button
+                          onClick={() => downloadDocument(i, turn.text, "docx")}
+                          disabled={downloading === `${i}-docx`}
+                          className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                        >
+                          {downloading === `${i}-docx` ? "Generating…" : "⬇ Download as Word Doc"}
+                        </button>
+                      </div>
+                    )}
                 </div>
               ))}
 

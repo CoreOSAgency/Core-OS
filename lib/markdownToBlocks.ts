@@ -1,0 +1,145 @@
+// Turns the agent's markdown reply into structured blocks that the PDF,
+// DOCX, and (later) PPTX generators can each render in their own way,
+// instead of each parsing markdown itself.
+
+export type Block =
+  | { type: "heading"; level: 1 | 2 | 3; text: string }
+  | { type: "paragraph"; text: string }
+  | { type: "bullet"; items: string[] }
+  | { type: "numbered"; items: string[] }
+  | { type: "table"; headers: string[]; rows: string[][] };
+
+export type InlineRun = { text: string; bold: boolean };
+
+// Splits "some **bold** text" into runs so renderers that support rich text
+// (docx) can render real bold, without needing a full markdown parser.
+export function parseInlineRuns(text: string): InlineRun[] {
+  const runs: InlineRun[] = [];
+  const pattern = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text))) {
+    if (match.index > lastIndex) {
+      runs.push({ text: text.slice(lastIndex, match.index), bold: false });
+    }
+    runs.push({ text: match[1], bold: true });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    runs.push({ text: text.slice(lastIndex), bold: false });
+  }
+  return runs.length > 0 ? runs : [{ text, bold: false }];
+}
+
+// Plain-text fallback for renderers (pdf-lib) that don't do inline styling.
+export function stripInlineMarkdown(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
+}
+
+function isTableRow(line: string): boolean {
+  return /^\s*\|.*\|\s*$/.test(line);
+}
+
+function isTableSeparator(line: string): boolean {
+  return /^\s*\|?[\s:-]+\|[\s:|-]*$/.test(line) && line.includes("-");
+}
+
+function splitTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+export function parseMarkdownToBlocks(markdown: string): Block[] {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const blocks: Block[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (!line.trim()) {
+      i++;
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.*)$/);
+    if (heading) {
+      blocks.push({
+        type: "heading",
+        level: heading[1].length as 1 | 2 | 3,
+        text: heading[2].trim(),
+      });
+      i++;
+      continue;
+    }
+
+    if (isTableRow(line) && lines[i + 1] && isTableSeparator(lines[i + 1])) {
+      const headers = splitTableRow(line);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && isTableRow(lines[i])) {
+        rows.push(splitTableRow(lines[i]));
+        i++;
+      }
+      blocks.push({ type: "table", headers, rows });
+      continue;
+    }
+
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*[-*]\s+/, "").trim());
+        i++;
+      }
+      blocks.push({ type: "bullet", items });
+      continue;
+    }
+
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*\d+\.\s+/, "").trim());
+        i++;
+      }
+      blocks.push({ type: "numbered", items });
+      continue;
+    }
+
+    // Paragraph: collect contiguous non-blank, non-special lines.
+    const paraLines: string[] = [];
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !/^(#{1,3})\s/.test(lines[i]) &&
+      !/^\s*[-*]\s+/.test(lines[i]) &&
+      !/^\s*\d+\.\s+/.test(lines[i]) &&
+      !isTableRow(lines[i])
+    ) {
+      paraLines.push(lines[i].trim());
+      i++;
+    }
+    if (paraLines.length > 0) {
+      blocks.push({ type: "paragraph", text: paraLines.join(" ") });
+    }
+  }
+
+  return blocks;
+}
+
+export function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+export function hasStructuredContent(text: string): boolean {
+  const lines = text.split("\n");
+  const listLines = lines.filter((l) => /^\s*([-*]|\d+\.)\s+/.test(l)).length;
+  return (
+    /^#{1,3}\s/m.test(text) || // headers
+    listLines >= 3 || // a real list, not one stray "- " in prose
+    /^\s*\|.*\|\s*$/m.test(text) // a table
+  );
+}

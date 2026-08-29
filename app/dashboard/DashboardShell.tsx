@@ -265,6 +265,7 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
       <ChatPanel
         agent={selectedAgent}
         projectId={activeProjectId}
+        projectName={activeProject?.name ?? null}
         onClose={() => setSelectedAgent(null)}
       />
 
