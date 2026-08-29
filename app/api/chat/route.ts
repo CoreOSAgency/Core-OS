@@ -11,6 +11,7 @@ import {
   getProjectContext,
   saveProjectContext,
 } from "@/lib/projects";
+import { appendTurn, createConversation } from "@/lib/conversations";
 
 type ChatTurn = { role: "user" | "model"; text: string };
 
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
   const agentId: unknown = body?.agentId;
   const message: unknown = body?.message;
   const projectId: unknown = body?.projectId;
+  const conversationId: unknown = body?.conversationId;
   const history: ChatTurn[] = Array.isArray(body?.history) ? body.history : [];
 
   if (typeof agentId !== "string" || typeof message !== "string" || !message.trim()) {
@@ -121,5 +123,26 @@ export async function POST(request: Request) {
 
   const { text: reply, isDeliverable } = extractDeliverableFlag(afterContext);
 
-  return NextResponse.json({ reply, contextSaved, isDeliverable });
+  // Persist the turn. A conversation is created on first message in a
+  // fresh chat; the client tracks the id from here for the rest of it.
+  const activeConversationId =
+    typeof conversationId === "string" && conversationId
+      ? conversationId
+      : (await createConversation(supabase, projectId, agentId)).id;
+
+  await appendTurn(
+    supabase,
+    activeConversationId,
+    message,
+    reply,
+    contextSaved,
+    isDeliverable
+  );
+
+  return NextResponse.json({
+    reply,
+    contextSaved,
+    isDeliverable,
+    conversationId: activeConversationId,
+  });
 }

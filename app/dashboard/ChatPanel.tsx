@@ -18,11 +18,24 @@ type ChatTurn = {
   isDeliverable?: boolean;
 };
 
+type ConversationSummary = { id: string; title: string | null; updated_at: string };
+
 const SPREADSHEET_COMMAND = /export as spreadsheet|create a spreadsheet/i;
 
 function deriveTitle(text: string, agentName: string): string {
   const heading = text.match(/^#{1,3}\s+(.*)$/m);
   return heading ? heading[1].trim() : `${agentName} notes`;
+}
+
+function relativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
 }
 
 // Tight, dark-theme-matched overrides — markdown's default block spacing is
@@ -84,23 +97,73 @@ export default function ChatPanel({
 }) {
   const isOpen = agent !== null;
   const [messages, setMessages] = useState<ChatTurn[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyList, setHistoryList] = useState<ConversationSummary[] | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadingChat, setLoadingChat] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Reset the conversation whenever a different agent — or a different
-  // project — is opened. Switching projects means different context.
+  // Opening a different agent — or a different project — resumes that
+  // agent's most recent conversation for this project, if it has one.
   useEffect(() => {
-    setMessages([]);
     setInput("");
     setError(null);
+    setShowHistory(false);
+    setHistoryList(null);
+    setMessages([]);
+    setConversationId(null);
+
+    if (!agent || !projectId) return;
+
+    setLoadingChat(true);
+    fetch(`/api/projects/${projectId}/conversations?agentId=${agent.id}`)
+      .then((res) => res.json())
+      .then(async (data: { conversations?: ConversationSummary[] }) => {
+        const latest = data.conversations?.[0];
+        if (!latest) return;
+        await loadConversation(latest.id);
+      })
+      .finally(() => setLoadingChat(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agent?.id, projectId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages, sending]);
+  }, [messages, sending, showHistory]);
+
+  async function loadConversation(id: string) {
+    const res = await fetch(`/api/conversations/${id}/messages`);
+    const data = await res.json();
+    const loaded: ChatTurn[] = (data.messages ?? []).map(
+      (m: { role: "user" | "model"; content: string; context_saved: boolean; is_deliverable: boolean }) => ({
+        role: m.role,
+        text: m.content,
+        contextSaved: m.context_saved,
+        isDeliverable: m.is_deliverable,
+      })
+    );
+    setMessages(loaded);
+    setConversationId(id);
+    setShowHistory(false);
+  }
+
+  async function openHistory() {
+    if (!agent || !projectId) return;
+    setShowHistory(true);
+    const res = await fetch(`/api/projects/${projectId}/conversations?agentId=${agent.id}`);
+    const data = await res.json();
+    setHistoryList(data.conversations ?? []);
+  }
+
+  function startNewChat() {
+    setMessages([]);
+    setConversationId(null);
+    setShowHistory(false);
+  }
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
@@ -117,11 +180,19 @@ export default function ChatPanel({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId: agent.id, message: text, projectId, history }),
+        body: JSON.stringify({
+          agentId: agent.id,
+          message: text,
+          projectId,
+          conversationId,
+          history,
+        }),
       });
       const data = await res.json();
 
       if (!res.ok) throw new Error(data?.error ?? "Something went wrong");
+
+      if (data.conversationId) setConversationId(data.conversationId);
 
       const replyIndex = history.length + 1;
       setMessages((prev) => [
@@ -239,120 +310,171 @@ export default function ChatPanel({
                   <p className="text-xs text-neutral-400">{agent.description}</p>
                 </div>
               </div>
-              <button
-                onClick={onClose}
-                aria-label="Close chat"
-                className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
-              {messages.length === 0 && (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-                  <span className="text-3xl">{agent.emoji}</span>
-                  <p className="text-sm text-neutral-400">
-                    Message {agent.name} to get started.
-                  </p>
-                </div>
-              )}
-
-              {messages.map((turn, i) => (
-                <div
-                  key={i}
-                  className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                    turn.role === "user"
-                      ? "ml-auto bg-emerald-600 text-white"
-                      : "bg-neutral-800 text-neutral-100"
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => (showHistory ? setShowHistory(false) : openHistory())}
+                  aria-label="Chat history"
+                  title="Chat history"
+                  className={`rounded-lg p-2 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100 ${
+                    showHistory ? "bg-neutral-800 text-neutral-100" : ""
                   }`}
                 >
-                  {turn.role === "model" ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                      {turn.text}
-                    </ReactMarkdown>
-                  ) : (
-                    turn.text
-                  )}
-                  {turn.contextSaved && (
-                    <p className="mt-1.5 text-xs text-emerald-400/80">
-                      ✓ Project memory saved
-                    </p>
-                  )}
-                  {turn.role === "model" && turn.isDeliverable && (
-                    <div className="mt-2 flex flex-wrap gap-2 border-t border-neutral-700/60 pt-2">
-                      <button
-                        onClick={() => downloadDocument(i, turn.text, "pdf")}
-                        disabled={downloading === `${i}-pdf`}
-                        className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
-                      >
-                        {downloading === `${i}-pdf` ? "Generating…" : "⬇ Download as PDF"}
-                      </button>
-                      <button
-                        onClick={() => downloadDocument(i, turn.text, "docx")}
-                        disabled={downloading === `${i}-docx`}
-                        className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
-                      >
-                        {downloading === `${i}-docx` ? "Generating…" : "⬇ Download as Word Doc"}
-                      </button>
-                      {(() => {
-                        const tableData = extractTableData(turn.text);
-                        if (!tableData) return null;
-                        return (
-                          <button
-                            onClick={() => downloadSpreadsheet(i, tableData)}
-                            disabled={downloading === `${i}-xlsx`}
-                            className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
-                          >
-                            {downloading === `${i}-xlsx`
-                              ? "Generating…"
-                              : "⬇ Download as Spreadsheet"}
-                          </button>
-                        );
-                      })()}
-                      {hasSlideStructure(turn.text) && (
-                        <button
-                          onClick={() => downloadPresentation(i, turn.text)}
-                          disabled={downloading === `${i}-pptx`}
-                          className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
-                        >
-                          {downloading === `${i}-pptx`
-                            ? "Generating…"
-                            : "⬇ Download as Presentation"}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {sending && (
-                <div className="max-w-[85%] rounded-lg bg-neutral-800 px-3 py-2 text-sm text-neutral-400">
-                  {agent.name} is typing…
-                </div>
-              )}
-
-              {error && <p className="text-sm text-red-400">{error}</p>}
-            </div>
-
-            <form onSubmit={sendMessage} className="border-t border-neutral-800 p-4">
-              <div className="flex items-center gap-2">
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  disabled={sending}
-                  placeholder={`Message ${agent.name}…`}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500 disabled:opacity-60"
-                />
+                  🕘
+                </button>
                 <button
-                  type="submit"
-                  disabled={sending || !input.trim()}
-                  className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
+                  onClick={onClose}
+                  aria-label="Close chat"
+                  className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
                 >
-                  Send
+                  ✕
                 </button>
               </div>
-            </form>
+            </div>
+
+            {showHistory ? (
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <button
+                  onClick={startNewChat}
+                  className="mb-3 w-full rounded-lg border border-emerald-600 px-3 py-2 text-left text-sm font-medium text-emerald-400 hover:bg-emerald-500/10"
+                >
+                  + New chat
+                </button>
+
+                {historyList === null && (
+                  <p className="text-sm text-neutral-500">Loading…</p>
+                )}
+                {historyList !== null && historyList.length === 0 && (
+                  <p className="text-sm text-neutral-500">No past chats with {agent.name} yet.</p>
+                )}
+                <ul className="space-y-1">
+                  {historyList?.map((c) => (
+                    <li key={c.id}>
+                      <button
+                        onClick={() => loadConversation(c.id)}
+                        className={`block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-neutral-800 ${
+                          c.id === conversationId
+                            ? "bg-neutral-800 text-neutral-100"
+                            : "text-neutral-300"
+                        }`}
+                      >
+                        <span className="block truncate">{c.title || "New chat"}</span>
+                        <span className="text-xs text-neutral-500">
+                          {relativeTime(c.updated_at)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+                {!loadingChat && messages.length === 0 && (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                    <span className="text-3xl">{agent.emoji}</span>
+                    <p className="text-sm text-neutral-400">
+                      Message {agent.name} to get started.
+                    </p>
+                  </div>
+                )}
+
+                {messages.map((turn, i) => (
+                  <div
+                    key={i}
+                    className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                      turn.role === "user"
+                        ? "ml-auto bg-emerald-600 text-white"
+                        : "bg-neutral-800 text-neutral-100"
+                    }`}
+                  >
+                    {turn.role === "model" ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                        {turn.text}
+                      </ReactMarkdown>
+                    ) : (
+                      turn.text
+                    )}
+                    {turn.contextSaved && (
+                      <p className="mt-1.5 text-xs text-emerald-400/80">
+                        ✓ Project memory saved
+                      </p>
+                    )}
+                    {turn.role === "model" && turn.isDeliverable && (
+                      <div className="mt-2 flex flex-wrap gap-2 border-t border-neutral-700/60 pt-2">
+                        <button
+                          onClick={() => downloadDocument(i, turn.text, "pdf")}
+                          disabled={downloading === `${i}-pdf`}
+                          className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                        >
+                          {downloading === `${i}-pdf` ? "Generating…" : "⬇ Download as PDF"}
+                        </button>
+                        <button
+                          onClick={() => downloadDocument(i, turn.text, "docx")}
+                          disabled={downloading === `${i}-docx`}
+                          className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                        >
+                          {downloading === `${i}-docx` ? "Generating…" : "⬇ Download as Word Doc"}
+                        </button>
+                        {(() => {
+                          const tableData = extractTableData(turn.text);
+                          if (!tableData) return null;
+                          return (
+                            <button
+                              onClick={() => downloadSpreadsheet(i, tableData)}
+                              disabled={downloading === `${i}-xlsx`}
+                              className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                            >
+                              {downloading === `${i}-xlsx`
+                                ? "Generating…"
+                                : "⬇ Download as Spreadsheet"}
+                            </button>
+                          );
+                        })()}
+                        {hasSlideStructure(turn.text) && (
+                          <button
+                            onClick={() => downloadPresentation(i, turn.text)}
+                            disabled={downloading === `${i}-pptx`}
+                            className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                          >
+                            {downloading === `${i}-pptx`
+                              ? "Generating…"
+                              : "⬇ Download as Presentation"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {sending && (
+                  <div className="max-w-[85%] rounded-lg bg-neutral-800 px-3 py-2 text-sm text-neutral-400">
+                    {agent.name} is typing…
+                  </div>
+                )}
+
+                {error && <p className="text-sm text-red-400">{error}</p>}
+              </div>
+            )}
+
+            {!showHistory && (
+              <form onSubmit={sendMessage} className="border-t border-neutral-800 p-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    disabled={sending}
+                    placeholder={`Message ${agent.name}…`}
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500 disabled:opacity-60"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sending || !input.trim()}
+                    className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
+                  >
+                    Send
+                  </button>
+                </div>
+              </form>
+            )}
           </>
         )}
       </aside>
