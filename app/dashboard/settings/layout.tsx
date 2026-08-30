@@ -12,7 +12,10 @@ export default async function SettingsLayout({ children }: { children: React.Rea
 
   return (
     <div className="flex h-screen bg-core-main">
-      <SettingsIconSidebar userEmail={user.email ?? ""} />
+      <SettingsIconSidebar
+        userEmail={user.email ?? ""}
+        avatarUrl={(user.user_metadata?.avatar_url as string) ?? null}
+      />
       <SettingsNav />
       <main className="min-h-0 flex-1 overflow-y-auto bg-core-main">{children}</main>
     </div>

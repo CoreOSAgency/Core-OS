@@ -12,6 +12,7 @@ type IntegrationCard = {
 };
 
 const COMING_SOON: IntegrationCard[] = [
+  { name: "Google Workspace", emoji: "🗂️", badge: "Workspace", description: "Gmail, Calendar, and Docs access." },
   { name: "Notion", emoji: "📓", badge: "Workspace", description: "Sync project docs and notes." },
   { name: "Slack", emoji: "💬", badge: "Client / Agency", description: "Post agent activity to a channel." },
   { name: "Instantly", emoji: "📤", badge: "Client / Agency", description: "Sync cold email campaigns." },

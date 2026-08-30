@@ -1,21 +1,33 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import type { Agent } from "@/lib/agents";
+import { useRouter, useSearchParams } from "next/navigation";
+import { findAgent, type Agent } from "@/lib/agents";
 import type { Project } from "@/lib/projects";
 import { extractDriveFolderId } from "@/lib/googleDrive";
+import { ACTIVE_PROJECT_KEY, LAST_AGENT_KEY } from "@/lib/localStorageKeys";
+import AgencyIntegrations from "./settings/integrations/page";
+import AgencySettings from "./settings/organization/page";
+import AgencyMedia from "./AgencyMedia";
 import AgencyOverview from "./AgencyOverview";
 import AgentGrid from "./AgentGrid";
 import ChatPanel from "./ChatPanel";
-import IconSidebar from "./IconSidebar";
+import CorePanel from "./CorePanel";
+import IconSidebar, { type IconSection } from "./IconSidebar";
 import OnboardingWizard from "./OnboardingWizard";
 import ProjectMemoryPanel from "./ProjectMemoryPanel";
-import SecondaryNav from "./SecondaryNav";
+import SecondaryNav, { type AgencySubView } from "./SecondaryNav";
 
-const ACTIVE_PROJECT_KEY = "coreos_active_project_id";
+type Section = Exclude<IconSection, "workflows" | "settings">;
 
-export default function DashboardShell({ userEmail }: { userEmail: string }) {
+export default function DashboardShell({
+  userEmail,
+  avatarUrl,
+}: {
+  userEmail: string;
+  avatarUrl?: string | null;
+}) {
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -26,14 +38,15 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
   const [newWebsiteUrl, setNewWebsiteUrl] = useState("");
   const [newDriveFolderUrl, setNewDriveFolderUrl] = useState("");
   const [importing, setImporting] = useState(false);
-  const [importPreview, setImportPreview] = useState<Record<string, string> | null>(
-    null
-  );
+  const [importPreview, setImportPreview] = useState<Record<string, string> | null>(null);
   const [memoryOpen, setMemoryOpen] = useState(false);
-  const [overviewOpen, setOverviewOpen] = useState(false);
   const [driveConnected, setDriveConnected] = useState(false);
   const [integrationBanner, setIntegrationBanner] = useState<string | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+
+  const [section, setSection] = useState<Section>("dashboard");
+  const [agencySubView, setAgencySubView] = useState<AgencySubView>("overview");
+  const [lastAgent, setLastAgent] = useState<Agent | null>(null);
+
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -48,9 +61,24 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
     else if (status === "error") setIntegrationBanner("Couldn't connect Google Drive — try again.");
   }, [searchParams]);
 
+  // Other routes (settings, workflows, the agent chat page) send you back
+  // here via ?view=<section> since those sections live in client state, not
+  // their own routes.
   useEffect(() => {
-    if (searchParams.get("view") === "agency") setOverviewOpen(true);
+    const view = searchParams.get("view");
+    if (view === "agency" || view === "clients" || view === "files" || view === "domains") {
+      setSection(view);
+    }
   }, [searchParams]);
+
+  useEffect(() => {
+    try {
+      const id = localStorage.getItem(LAST_AGENT_KEY);
+      if (id) setLastAgent(findAgent(id));
+    } catch {
+      // per-browser convenience only
+    }
+  }, []);
 
   useEffect(() => {
     let stored: string | null = null;
@@ -135,34 +163,41 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
 
-  function goDashboard() {
-    setOverviewOpen(false);
-    setSelectedAgent(null);
-  }
-
-  function toggleAgency() {
-    setOverviewOpen((v) => !v);
-    setSelectedAgent(null);
+  function onNavigate(next: IconSection) {
+    if (next === "workflows") return router.push("/dashboard/workflows");
+    if (next === "settings") return router.push("/dashboard/settings/organization");
+    setSection(next);
   }
 
   function selectAgent(agent: Agent) {
-    setOverviewOpen(false);
-    setSelectedAgent(agent);
+    try {
+      localStorage.setItem(LAST_AGENT_KEY, agent.id);
+    } catch {
+      // per-browser convenience only
+    }
+    router.push(`/dashboard/agency/${agent.id}`);
   }
+
+  function clearLastAgent() {
+    setLastAgent(null);
+    try {
+      localStorage.removeItem(LAST_AGENT_KEY);
+    } catch {
+      // per-browser convenience only
+    }
+  }
+
+  const hasProject = !loading && !!activeProjectId && !creating;
 
   return (
     <div className="flex h-screen bg-core-main">
-      <IconSidebar
-        onDashboard={goDashboard}
-        onAgency={toggleAgency}
-        agencyActive={overviewOpen}
-        userEmail={userEmail}
-      />
+      <IconSidebar active={section} onNavigate={onNavigate} userEmail={userEmail} avatarUrl={avatarUrl} />
       <SecondaryNav
-        selectedAgentId={selectedAgent?.id ?? null}
+        section={section}
+        agencySubView={agencySubView}
+        onAgencySubView={setAgencySubView}
+        selectedAgentId={lastAgent?.id ?? null}
         onSelectAgent={selectAgent}
-        overviewActive={overviewOpen}
-        onOverview={toggleAgency}
       />
 
       <main className="min-h-0 flex-1 overflow-y-auto bg-core-main">
@@ -186,9 +221,7 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
                           <button
                             onClick={() => setActiveProject(p.id)}
                             className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-white/5 ${
-                              p.id === activeProjectId
-                                ? "text-core-purple"
-                                : "text-neutral-200"
+                              p.id === activeProjectId ? "text-core-purple" : "text-neutral-200"
                             }`}
                           >
                             {p.name}
@@ -235,15 +268,11 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
               </button>
             </div>
           )}
-          {importing && (
-            <p className="mb-4 text-sm text-neutral-400">Importing from website…</p>
-          )}
+          {importing && <p className="mb-4 text-sm text-neutral-400">Importing from website…</p>}
           {importPreview && (
             <div className="mb-6 rounded-xl border border-core-purple/40 bg-core-purple/10 p-4">
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-core-purple">
-                  Imported from website
-                </h3>
+                <h3 className="text-sm font-semibold text-core-purple">Imported from website</h3>
                 <button
                   onClick={() => setImportPreview(null)}
                   className="text-xs text-neutral-400 hover:text-neutral-200"
@@ -256,9 +285,7 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
                   .filter(([, value]) => value)
                   .map(([key, value]) => (
                     <div key={key}>
-                      <dt className="text-xs uppercase tracking-wide text-neutral-500">
-                        {key}
-                      </dt>
+                      <dt className="text-xs uppercase tracking-wide text-neutral-500">{key}</dt>
                       <dd className="truncate text-neutral-200">{value}</dd>
                     </div>
                   ))}
@@ -278,9 +305,7 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
           ) : !activeProjectId || creating ? (
             <div className="mx-auto max-w-sm rounded-xl border border-white/10 bg-core-card p-6">
               <h2 className="font-semibold text-neutral-100">New project</h2>
-              <p className="mt-1 text-sm text-neutral-500">
-                Agents remember what you tell them per project.
-              </p>
+              <p className="mt-1 text-sm text-neutral-500">Agents remember what you tell them per project.</p>
               <form onSubmit={createProject} className="mt-4 space-y-3">
                 <input
                   value={newName}
@@ -329,21 +354,74 @@ export default function DashboardShell({ userEmail }: { userEmail: string }) {
                 </div>
               </form>
             </div>
-          ) : overviewOpen ? (
-            <AgencyOverview projectId={activeProjectId} projectName={activeProject?.name ?? ""} />
-          ) : (
+          ) : section === "dashboard" ? (
             <AgentGrid onSelect={selectAgent} />
+          ) : section === "agency" ? (
+            agencySubView === "overview" ? (
+              <AgencyOverview projectId={activeProjectId} projectName={activeProject?.name ?? ""} />
+            ) : agencySubView === "integrations" ? (
+              <AgencyIntegrations />
+            ) : agencySubView === "media" ? (
+              <AgencyMedia />
+            ) : (
+              <AgencySettings />
+            )
+          ) : section === "clients" ? (
+            <div className="rounded-xl border border-dashed border-white/10 bg-core-card/50 p-10 text-center">
+              <div className="mb-2 text-2xl">👥</div>
+              <h3 className="font-medium text-neutral-200">No clients yet</h3>
+              <p className="mx-auto mt-1 max-w-sm text-sm text-neutral-500">
+                Client records aren&apos;t built yet — for now, each CoreOS project represents one client
+                or agency you&apos;re operating.
+              </p>
+            </div>
+          ) : section === "files" ? (
+            <div className="rounded-xl border border-dashed border-white/10 bg-core-card/50 p-10 text-center">
+              <div className="mb-2 text-2xl">📁</div>
+              <h3 className="font-medium text-neutral-200">File manager isn&apos;t built yet</h3>
+              <p className="mx-auto mt-1 max-w-sm text-sm text-neutral-500">
+                Generated documents download directly or save to Google Drive — there&apos;s no file
+                storage inside CoreOS yet.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-white/10 bg-core-card/50 p-10 text-center">
+              <div className="mb-2 text-2xl">🌐</div>
+              <h3 className="font-medium text-neutral-200">Domain management isn&apos;t built yet</h3>
+              <p className="mx-auto mt-1 max-w-sm text-sm text-neutral-500">
+                Connect and manage client domains from here once this is built.
+              </p>
+            </div>
           )}
         </div>
       </main>
 
-      <ChatPanel
-        agent={selectedAgent}
-        projectId={activeProjectId}
-        projectName={activeProject?.name ?? null}
-        driveConnected={driveConnected}
-        onClose={() => setSelectedAgent(null)}
-      />
+      {hasProject && section === "dashboard" && (
+        <CorePanel
+          projectId={activeProjectId}
+          projectName={activeProject?.name ?? null}
+          driveConnected={driveConnected}
+        />
+      )}
+
+      {hasProject && section === "agency" && agencySubView === "overview" ? (
+        lastAgent ? (
+          <ChatPanel
+            agent={lastAgent}
+            projectId={activeProjectId}
+            projectName={activeProject?.name ?? null}
+            driveConnected={driveConnected}
+            onClose={clearLastAgent}
+          />
+        ) : (
+          <aside className="flex h-full w-[380px] max-w-full shrink-0 flex-col items-center justify-center gap-2 border-l border-white/10 bg-core-nav px-6 text-center">
+            <span className="text-2xl">💬</span>
+            <p className="text-sm text-neutral-500">
+              Select an agent from the sidebar to chat alongside Agency Overview.
+            </p>
+          </aside>
+        )
+      ) : null}
 
       {memoryOpen && activeProjectId && (
         <ProjectMemoryPanel

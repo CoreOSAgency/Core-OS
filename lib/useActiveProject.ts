@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Project } from "@/lib/projects";
-
-const ACTIVE_PROJECT_KEY = "coreos_active_project_id";
+import { ACTIVE_PROJECT_KEY } from "@/lib/localStorageKeys";
 
 // Shared with DashboardShell — settings pages live outside that component's
 // tree, so they resolve "the current project" the same way: last id picked,

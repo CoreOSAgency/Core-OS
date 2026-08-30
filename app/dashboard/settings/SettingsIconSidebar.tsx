@@ -1,16 +1,32 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import IconSidebar from "../IconSidebar";
+import IconSidebar, { type IconSection } from "../IconSidebar";
 
-export default function SettingsIconSidebar({ userEmail }: { userEmail: string }) {
+export default function SettingsIconSidebar({
+  userEmail,
+  avatarUrl,
+}: {
+  userEmail: string;
+  avatarUrl?: string | null;
+}) {
   const router = useRouter();
+
+  function onNavigate(section: IconSection) {
+    if (section === "settings") return;
+    if (section === "workflows") {
+      router.push("/dashboard/workflows");
+      return;
+    }
+    router.push(section === "dashboard" ? "/dashboard" : `/dashboard?view=${section}`);
+  }
+
   return (
     <IconSidebar
-      onDashboard={() => router.push("/dashboard")}
-      onAgency={() => router.push("/dashboard?view=agency")}
-      agencyActive={false}
+      active="settings"
+      onNavigate={onNavigate}
       userEmail={userEmail}
+      avatarUrl={avatarUrl}
     />
   );
 }

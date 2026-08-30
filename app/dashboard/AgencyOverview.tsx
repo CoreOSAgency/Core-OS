@@ -4,49 +4,120 @@ import { useEffect, useState } from "react";
 
 type Section = { title: string; keys: string[] };
 
-// Mirrors AgencyOSX's Agency Overview grouping. "Voice and Values" has no
-// dedicated keys today — it's here so the section exists once agents start
-// saving tone/voice facts, same as the others.
+// Mirrors AgencyOSX's Agency Overview grouping.
 const SECTIONS: Section[] = [
-  { title: "Brand Identity", keys: ["company_name", "logo_url", "brand_colours", "tagline"] },
-  { title: "About", keys: ["agency_name", "niche", "company_description", "website_url"] },
-  { title: "Public Offer", keys: ["primary_offer", "pricing"] },
+  { title: "About", keys: ["agency_name", "niche", "positioning", "company_description"] },
+  { title: "Public Offer", keys: ["primary_offer", "result_led_mechanism", "pricing"] },
+  { title: "Delivery Mechanics", keys: ["delivery_mechanics"] },
+  { title: "Commercials", keys: ["commercials"] },
   { title: "Ideal Client", keys: ["ideal_client", "icp"] },
   { title: "Voice and Values", keys: ["voice", "values", "tone"] },
   { title: "Market and Goals", keys: ["market", "goals"] },
+  { title: "Web", keys: ["website_url"] },
+];
+
+const STAT_KEYS: { key: string; label: string }[] = [
+  { key: "niche", label: "Niche" },
+  { key: "avg_retainer", label: "Avg Retainer" },
+  { key: "market", label: "Market" },
 ];
 
 function labelFor(key: string): string {
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function ColorSwatches({ value }: { value: string }) {
-  const colors = value.split(",").map((c) => c.trim()).filter(Boolean);
-  const [copied, setCopied] = useState<string | null>(null);
+function splitList(value: string): string[] {
+  return value
+    .split(/\n|;|,/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
 
-  function copy(hex: string) {
-    navigator.clipboard?.writeText(hex).then(() => {
-      setCopied(hex);
-      setTimeout(() => setCopied(null), 1200);
-    });
-  }
-
+function EditIcon() {
   return (
-    <div className="flex flex-wrap gap-2">
-      {colors.map((hex) => (
-        <button
-          key={hex}
-          onClick={() => copy(hex)}
-          title="Click to copy"
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-core-main px-2 py-1 text-xs text-neutral-300 hover:border-core-purple/50"
-        >
-          <span
-            className="h-4 w-4 rounded-full border border-white/20"
-            style={{ backgroundColor: /^#[0-9a-fA-F]{3,6}$/.test(hex) ? hex : "transparent" }}
+    <svg width="13" height="13" viewBox="0 0 20 20" className="shrink-0">
+      <path
+        d="M4 16l1-4L13 4l3 3-8 8-4 1Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ColorChip({ label, hex }: { label: string; hex: string }) {
+  const [copied, setCopied] = useState(false);
+  const valid = /^#[0-9a-fA-F]{3,6}$/.test(hex);
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard?.writeText(hex).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        });
+      }}
+      title="Click to copy"
+      className="flex flex-col items-start gap-1.5 rounded-lg border border-white/10 bg-core-main px-3 py-2 text-left hover:border-core-purple/50"
+    >
+      <span className="text-[10px] uppercase tracking-wide text-neutral-500">{label}</span>
+      <span className="flex items-center gap-1.5 text-xs text-neutral-300">
+        <span
+          className="h-4 w-4 rounded-full border border-white/20"
+          style={{ backgroundColor: valid ? hex : "transparent" }}
+        />
+        {copied ? "Copied!" : hex}
+      </span>
+    </button>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  editing,
+  editValue,
+  onEditValueChange,
+  onStartEdit,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  editing: boolean;
+  editValue: string;
+  onEditValueChange: (v: string) => void;
+  onStartEdit: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-core-card p-4">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-xs text-neutral-500">{label}</span>
+        {!editing && (
+          <button onClick={onStartEdit} className="text-neutral-500 hover:text-core-purple">
+            <EditIcon />
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="flex gap-1.5">
+          <input
+            value={editValue}
+            onChange={(e) => onEditValueChange(e.target.value)}
+            autoFocus
+            className="w-full rounded border border-white/10 bg-core-main px-2 py-1 text-sm text-neutral-100 outline-none focus:border-core-purple"
           />
-          {copied === hex ? "Copied!" : hex}
-        </button>
-      ))}
+          <button
+            onClick={onSave}
+            className="shrink-0 rounded bg-core-purple px-2 py-1 text-xs font-medium text-white hover:bg-core-purple/80"
+          >
+            Save
+          </button>
+        </div>
+      ) : (
+        <p className="truncate text-sm font-medium text-neutral-100">{value || "—"}</p>
+      )}
     </div>
   );
 }
@@ -76,6 +147,11 @@ export default function AgencyOverview({
   }
 
   useEffect(load, [projectId]);
+
+  function startEdit(key: string) {
+    setEditingKey(key);
+    setEditValue(context?.[key] ?? "");
+  }
 
   async function saveEdit(key: string) {
     await fetch(`/api/projects/${projectId}/context`, {
@@ -113,120 +189,260 @@ export default function AgencyOverview({
   }
 
   const claimedKeys = new Set(SECTIONS.flatMap((s) => s.keys));
-  const otherKeys = Object.keys(context).filter((k) => !claimedKeys.has(k));
+  const otherKeys = Object.keys(context).filter(
+    (k) => !claimedKeys.has(k) && !["company_name", "logo_url", "brand_colours", "tagline", "primary_color", "accent_color", "background_color", "brand_tone", "avg_retainer"].includes(k)
+  );
   const allSections = [...SECTIONS, ...(otherKeys.length ? [{ title: "Other", keys: otherKeys }] : [])];
+
+  const agencyName = context.agency_name || context.company_name || projectName;
+  const detectedColors = context.brand_colours ? splitList(context.brand_colours) : [];
 
   return (
     <div>
-      <h2 className="mb-1 text-lg font-semibold text-neutral-100">Agency Overview</h2>
-      <p className="mb-6 text-sm text-neutral-500">{projectName}</p>
+      {/* Header */}
+      <div className="mb-6 flex items-center gap-4">
+        {context.logo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={context.logo_url}
+            alt=""
+            className="h-14 w-14 rounded-xl border border-white/10 bg-white/5 object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        ) : (
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-dashed border-white/10 text-lg text-neutral-600">
+            {agencyName.charAt(0).toUpperCase() || "?"}
+          </div>
+        )}
+        <div>
+          <h2 className="text-xl font-semibold text-neutral-100">{agencyName}</h2>
+          <p className="text-sm text-neutral-500">
+            {context.tagline || context.niche || "No tagline set yet"}
+          </p>
+        </div>
+      </div>
+
+      {/* Stat row */}
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {STAT_KEYS.map((stat) => (
+          <StatCard
+            key={stat.key}
+            label={stat.label}
+            value={context[stat.key] ?? ""}
+            editing={editingKey === stat.key}
+            editValue={editValue}
+            onEditValueChange={setEditValue}
+            onStartEdit={() => startEdit(stat.key)}
+            onSave={() => saveEdit(stat.key)}
+          />
+        ))}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {/* Brand Identity — its own card since it mixes scan results, colors, and logo upload */}
+        <div className="rounded-xl border border-white/10 bg-core-card p-4">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-core-purple">
+            Brand Identity
+          </h3>
+          <div className="mb-4 space-y-2 rounded-lg border border-white/10 bg-core-main p-3">
+            <p className="text-xs text-neutral-500">
+              Scan a website to pull logo, brand colors, name, and tagline automatically.
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={scanUrl}
+                onChange={(e) => setScanUrl(e.target.value)}
+                placeholder="https://youragency.com"
+                className="w-full rounded-lg border border-white/10 bg-core-card px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-core-purple"
+              />
+              <button
+                onClick={scanForBrandIdentity}
+                disabled={scanning || !scanUrl.trim()}
+                className="shrink-0 rounded-lg bg-core-purple px-3 py-1.5 text-xs font-medium text-white hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {scanning ? "Scanning…" : "Scan for brand identity"}
+              </button>
+            </div>
+            {scanError && <p className="text-xs text-red-400">{scanError}</p>}
+          </div>
+
+          {context.logo_url && (
+            <div className="mb-3">
+              <span className="text-xs text-neutral-500">Logo</span>
+              <div className="mt-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={context.logo_url}
+                  alt="Logo"
+                  className="h-10 w-10 rounded-lg border border-white/10 bg-white/5 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="mb-3">
+            <span className="text-xs text-neutral-500">Colors</span>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              <ColorChip label="Primary" hex={context.primary_color || "#7c3aed"} />
+              <ColorChip label="Accent" hex={context.accent_color || "#6366f1"} />
+              <ColorChip label="Background" hex={context.background_color || "#0d0d18"} />
+            </div>
+            {detectedColors.length > 0 && (
+              <div className="mt-2">
+                <span className="text-[10px] uppercase tracking-wide text-neutral-600">
+                  Detected from site scan
+                </span>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {detectedColors.map((hex) => (
+                    <span
+                      key={hex}
+                      className="flex items-center gap-1 rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-neutral-400"
+                    >
+                      <span
+                        className="h-2.5 w-2.5 rounded-full border border-white/20"
+                        style={{ backgroundColor: hex }}
+                      />
+                      {hex}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-neutral-500">Brand tone</span>
+              {editingKey !== "brand_tone" && (
+                <button onClick={() => startEdit("brand_tone")} className="text-neutral-500 hover:text-core-purple">
+                  <EditIcon />
+                </button>
+              )}
+            </div>
+            {editingKey === "brand_tone" ? (
+              <div className="mt-1 flex gap-2">
+                <input
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  autoFocus
+                  className="w-full rounded border border-white/10 bg-core-main px-2 py-1 text-sm text-neutral-100 outline-none focus:border-core-purple"
+                />
+                <button
+                  onClick={() => saveEdit("brand_tone")}
+                  className="rounded bg-core-purple px-2 py-1 text-xs font-medium text-white hover:bg-core-purple/80"
+                >
+                  Save
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-neutral-200">{context.brand_tone || "Not set"}</p>
+            )}
+          </div>
+        </div>
+
         {allSections.map((section) => {
           const fields = section.keys.filter((k) => context[k]);
-          const isBrandIdentity = section.title === "Brand Identity";
 
           return (
-            <div
-              key={section.title}
-              className="rounded-xl border border-white/10 bg-core-card p-4"
-            >
+            <div key={section.title} className="rounded-xl border border-white/10 bg-core-card p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-core-purple">
                   {section.title}
                 </h3>
               </div>
 
-              {isBrandIdentity && (
-                <div className="mb-4 space-y-2 rounded-lg border border-white/10 bg-core-main p-3">
-                  <p className="text-xs text-neutral-500">
-                    Scan a website to pull logo, brand colors, name, and tagline automatically.
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      value={scanUrl}
-                      onChange={(e) => setScanUrl(e.target.value)}
-                      placeholder="https://youragency.com"
-                      className="w-full rounded-lg border border-white/10 bg-core-card px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-core-purple"
-                    />
-                    <button
-                      onClick={scanForBrandIdentity}
-                      disabled={scanning || !scanUrl.trim()}
-                      className="shrink-0 rounded-lg bg-core-purple px-3 py-1.5 text-xs font-medium text-white hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {scanning ? "Scanning…" : "Scan for brand identity"}
-                    </button>
-                  </div>
-                  {scanError && <p className="text-xs text-red-400">{scanError}</p>}
-                </div>
-              )}
-
-              {fields.length === 0 && (
-                <p className="text-sm text-neutral-600">Nothing saved yet.</p>
-              )}
+              {fields.length === 0 && <p className="text-sm text-neutral-600">Nothing saved yet.</p>}
 
               <div className="space-y-3">
-                {fields.map((key) => (
-                  <div key={key}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-neutral-500">{labelFor(key)}</span>
-                      {editingKey !== key && key !== "logo_url" && (
-                        <button
-                          onClick={() => {
-                            setEditingKey(key);
-                            setEditValue(context[key]);
-                          }}
-                          className="text-xs text-neutral-500 hover:text-core-purple"
+                {fields.map((key) => {
+                  const isSubsection = key === "positioning" || key === "result_led_mechanism";
+                  const isBulletList = key === "delivery_mechanics";
+                  const isMarketPills = key === "market" && section.title === "Market and Goals";
+                  const isWebsiteLink = key === "website_url";
+
+                  return (
+                    <div key={key}>
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`text-xs ${
+                            isSubsection ? "font-semibold uppercase tracking-wide text-core-purple" : "text-neutral-500"
+                          }`}
                         >
-                          Edit
-                        </button>
+                          {isSubsection
+                            ? key === "positioning"
+                              ? "Positioning"
+                              : "Result-Led Mechanism"
+                            : labelFor(key)}
+                        </span>
+                        {editingKey !== key && (
+                          <button onClick={() => startEdit(key)} className="text-neutral-500 hover:text-core-purple">
+                            <EditIcon />
+                          </button>
+                        )}
+                      </div>
+                      {editingKey === key ? (
+                        <div className="mt-1 flex gap-2">
+                          {isBulletList ? (
+                            <textarea
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              autoFocus
+                              rows={3}
+                              placeholder="One item per line"
+                              className="w-full rounded border border-white/10 bg-core-main px-2 py-1 text-sm text-neutral-100 outline-none focus:border-core-purple"
+                            />
+                          ) : (
+                            <input
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              autoFocus
+                              className="w-full rounded border border-white/10 bg-core-main px-2 py-1 text-sm text-neutral-100 outline-none focus:border-core-purple"
+                            />
+                          )}
+                          <button
+                            onClick={() => saveEdit(key)}
+                            className="shrink-0 rounded bg-core-purple px-2 py-1 text-xs font-medium text-white hover:bg-core-purple/80"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      ) : isBulletList ? (
+                        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-sm text-neutral-200">
+                          {splitList(context[key]).map((item, i) => (
+                            <li key={i}>{item}</li>
+                          ))}
+                        </ul>
+                      ) : isMarketPills ? (
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {splitList(context[key]).map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full bg-core-purple/15 px-2.5 py-0.5 text-xs text-core-purple"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : isWebsiteLink ? (
+                        <a
+                          href={context[key].startsWith("http") ? context[key] : `https://${context[key]}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm text-core-purple hover:underline"
+                        >
+                          {context[key]}
+                        </a>
+                      ) : (
+                        <p className="whitespace-pre-wrap text-sm text-neutral-200">{context[key]}</p>
                       )}
                     </div>
-                    {editingKey === key ? (
-                      <div className="mt-1 flex gap-2">
-                        <input
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          autoFocus
-                          className="w-full rounded border border-white/10 bg-core-main px-2 py-1 text-sm text-neutral-100 outline-none focus:border-core-purple"
-                        />
-                        <button
-                          onClick={() => saveEdit(key)}
-                          className="rounded bg-core-purple px-2 py-1 text-xs font-medium text-white hover:bg-core-purple/80"
-                        >
-                          Save
-                        </button>
-                      </div>
-                    ) : key === "logo_url" ? (
-                      <div className="mt-1 flex items-center gap-2">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={context[key]}
-                          alt="Logo"
-                          className="h-10 w-10 rounded-lg border border-white/10 bg-white/5 object-contain"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
-                          }}
-                        />
-                        <button
-                          onClick={() => {
-                            setEditingKey(key);
-                            setEditValue(context[key]);
-                          }}
-                          className="text-xs text-neutral-500 hover:text-core-purple"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    ) : key === "brand_colours" ? (
-                      <div className="mt-1">
-                        <ColorSwatches value={context[key]} />
-                      </div>
-                    ) : (
-                      <p className="text-sm text-neutral-200">{context[key]}</p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );

@@ -1,6 +1,9 @@
 "use client";
 
 import { agentSections, type Agent } from "@/lib/agents";
+import type { IconSection } from "./IconSidebar";
+
+export type AgencySubView = "overview" | "integrations" | "media" | "settings";
 
 // All disabled today — none has a page wired up yet. Every entry is tagged
 // "SOON" so a dead button never reads as a live one.
@@ -15,91 +18,166 @@ const TOOLS = [
   "Ads Manager",
 ];
 
-export default function SecondaryNav({
-  selectedAgentId,
-  onSelectAgent,
-  overviewActive,
-  onOverview,
+const AGENCY_SUB_ITEMS: { id: AgencySubView; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "integrations", label: "Integrations" },
+  { id: "media", label: "Media" },
+  { id: "settings", label: "Settings" },
+];
+
+function SubNavButton({
+  label,
+  active,
+  onClick,
 }: {
-  selectedAgentId: string | null;
-  onSelectAgent: (agent: Agent) => void;
-  overviewActive: boolean;
-  onOverview: () => void;
+  label: string;
+  active: boolean;
+  onClick: () => void;
 }) {
   return (
-    <nav className="flex h-full min-h-0 w-[240px] shrink-0 flex-col overflow-y-auto border-r border-white/5 bg-core-nav">
+    <button
+      onClick={onClick}
+      className={`block w-full rounded-lg px-3 py-1.5 text-left text-sm transition ${
+        active ? "bg-core-purple/15 text-core-purple" : "text-neutral-300 hover:bg-white/5"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+export default function SecondaryNav({
+  section,
+  agencySubView,
+  onAgencySubView,
+  selectedAgentId,
+  onSelectAgent,
+}: {
+  section: Exclude<IconSection, "workflows" | "settings">;
+  agencySubView: AgencySubView;
+  onAgencySubView: (v: AgencySubView) => void;
+  selectedAgentId: string | null;
+  onSelectAgent: (agent: Agent) => void;
+}) {
+  return (
+    <nav className="flex h-full min-h-0 w-[200px] shrink-0 flex-col overflow-y-auto border-r border-white/5 bg-core-nav">
       <div className="px-4 py-4">
-        <h2 className="text-sm font-semibold text-neutral-100">Dashboard</h2>
+        <h2 className="text-sm font-semibold capitalize text-neutral-100">{section}</h2>
       </div>
 
-      <div className="px-2">
-        <button
-          onClick={onOverview}
-          className={`mb-3 block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
-            overviewActive
-              ? "bg-core-purple/15 text-core-purple"
-              : "text-neutral-300 hover:bg-white/5"
-          }`}
-        >
-          Overview
-        </button>
-      </div>
+      {section === "agency" && (
+        <>
+          <div className="space-y-0.5 px-2 pb-3">
+            {AGENCY_SUB_ITEMS.map((item) => (
+              <SubNavButton
+                key={item.id}
+                label={item.label}
+                active={agencySubView === item.id}
+                onClick={() => onAgencySubView(item.id)}
+              />
+            ))}
+          </div>
+          <div className="mx-4 mb-3 border-t border-white/5" />
 
-      <div className="flex-1 space-y-4 px-2 pb-4">
-        {agentSections.map((section) => (
-          <div key={section.id}>
-            <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">
-              {section.title}
-            </p>
-            <ul>
-              {section.agents.map((agent) => {
-                const active = !overviewActive && agent.id === selectedAgentId;
-                return (
-                  <li key={agent.id}>
+          <div className="flex-1 space-y-4 px-2 pb-4">
+            {agentSections.map((group) => (
+              <div key={group.id}>
+                <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">
+                  {group.title}
+                </p>
+                <ul>
+                  {group.agents.map((agent) => {
+                    const active = agent.id === selectedAgentId;
+                    return (
+                      <li key={agent.id}>
+                        <button
+                          onClick={() => onSelectAgent(agent)}
+                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition ${
+                            active ? "bg-core-purple/15" : "hover:bg-white/5"
+                          }`}
+                        >
+                          <span className="text-sm">{agent.emoji}</span>
+                          <span className={active ? "text-core-purple" : "text-neutral-100"}>{agent.name}</span>
+                          <span className="text-neutral-700">·</span>
+                          <span className="truncate text-xs text-neutral-500">
+                            {agent.description.split(" — ")[0]}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+
+            <div>
+              <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">TOOLS</p>
+              <ul>
+                {TOOLS.map((tool) => (
+                  <li key={tool}>
                     <button
-                      onClick={() => onSelectAgent(agent)}
-                      className={`flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition ${
-                        active ? "bg-core-purple/15" : "hover:bg-white/5"
-                      }`}
+                      disabled
+                      title="Coming soon"
+                      className="flex w-full cursor-default items-center justify-between rounded-lg px-3 py-1.5 text-left text-sm text-neutral-500"
                     >
-                      <span className="text-sm">{agent.emoji}</span>
-                      <span className={active ? "text-core-purple" : "text-neutral-100"}>
-                        {agent.name}
-                      </span>
-                      <span className="text-neutral-700">·</span>
-                      <span className="truncate text-xs text-neutral-500">
-                        {agent.description.split(" — ")[0]}
+                      {tool}
+                      <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-neutral-500">
+                        SOON
                       </span>
                     </button>
                   </li>
-                );
-              })}
-            </ul>
+                ))}
+              </ul>
+            </div>
           </div>
-        ))}
+        </>
+      )}
 
-        <div>
-          <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">
-            TOOLS
-          </p>
-          <ul>
-            {TOOLS.map((tool) => (
-              <li key={tool}>
+      {section === "clients" && (
+        <div className="flex-1 px-2 pb-4">
+          <button
+            disabled
+            title="Client records aren't built yet"
+            className="mb-3 block w-full rounded-lg border border-core-purple/40 px-3 py-2 text-left text-sm text-core-purple/60"
+          >
+            + New client
+          </button>
+          <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">ALL CLIENTS</p>
+          <p className="px-3 text-sm text-neutral-600">No clients yet.</p>
+        </div>
+      )}
+
+      {section === "files" && (
+        <div className="flex-1 px-2 pb-4">
+          <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">FOLDERS</p>
+          <ul className="space-y-0.5">
+            {["Agency", "Unfiled", "Trash"].map((f) => (
+              <li key={f}>
                 <button
                   disabled
-                  title="Coming soon"
-                  className="flex w-full cursor-default items-center justify-between rounded-lg px-3 py-1.5 text-left text-sm text-neutral-500"
+                  title="File storage isn't built yet"
+                  className="flex w-full cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm text-neutral-500"
                 >
-                  {tool}
-                  <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-neutral-500">
-                    SOON
-                  </span>
+                  📁 {f}
                 </button>
               </li>
             ))}
           </ul>
         </div>
-      </div>
+      )}
+
+      {section === "domains" && (
+        <div className="flex-1 px-2 pb-4">
+          <button
+            disabled
+            title="Domain management isn't built yet"
+            className="mb-3 block w-full rounded-lg border border-core-purple/40 px-3 py-2 text-left text-sm text-core-purple/60"
+          >
+            + Add domain
+          </button>
+          <p className="px-3 text-sm text-neutral-600">No domains yet.</p>
+        </div>
+      )}
     </nav>
   );
 }

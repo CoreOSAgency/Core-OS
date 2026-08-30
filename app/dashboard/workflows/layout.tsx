@@ -11,7 +11,10 @@ export default async function WorkflowsLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-screen bg-core-main">
-      <WorkflowsIconSidebar userEmail={user.email ?? ""} />
+      <WorkflowsIconSidebar
+        userEmail={user.email ?? ""}
+        avatarUrl={(user.user_metadata?.avatar_url as string) ?? null}
+      />
       <main className="min-h-0 flex-1 overflow-hidden bg-core-main">{children}</main>
     </div>
   );

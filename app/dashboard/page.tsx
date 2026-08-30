@@ -10,5 +10,10 @@ export default async function DashboardPage() {
 
   if (!user) redirect("/login");
 
-  return <DashboardShell userEmail={user.email ?? ""} />;
+  return (
+    <DashboardShell
+      userEmail={user.email ?? ""}
+      avatarUrl={(user.user_metadata?.avatar_url as string) ?? null}
+    />
+  );
 }
