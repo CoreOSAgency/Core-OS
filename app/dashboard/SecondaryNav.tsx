@@ -1,6 +1,7 @@
 "use client";
 
-import { agentSections, type Agent } from "@/lib/agents";
+import type { Agent } from "@/lib/agents";
+import AgentRosterList from "./AgentRosterList";
 import type { IconSection } from "./IconSidebar";
 
 export type AgencySubView = "overview" | "integrations" | "media" | "settings";
@@ -76,35 +77,7 @@ export default function SecondaryNav({
           <div className="mx-4 mb-3 border-t border-white/5" />
 
           <div className="flex-1 space-y-4 px-2 pb-4">
-            {agentSections.map((group) => (
-              <div key={group.id}>
-                <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">
-                  {group.title}
-                </p>
-                <ul>
-                  {group.agents.map((agent) => {
-                    const active = agent.id === selectedAgentId;
-                    return (
-                      <li key={agent.id}>
-                        <button
-                          onClick={() => onSelectAgent(agent)}
-                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition ${
-                            active ? "bg-core-purple/15" : "hover:bg-white/5"
-                          }`}
-                        >
-                          <span className="text-sm">{agent.emoji}</span>
-                          <span className={active ? "text-core-purple" : "text-neutral-100"}>{agent.name}</span>
-                          <span className="text-neutral-700">·</span>
-                          <span className="truncate text-xs text-neutral-500">
-                            {agent.description.split(" — ")[0]}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
+            <AgentRosterList selectedAgentId={selectedAgentId} onSelectAgent={onSelectAgent} />
 
             <div>
               <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">TOOLS</p>

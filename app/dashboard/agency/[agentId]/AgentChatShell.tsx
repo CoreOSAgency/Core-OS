@@ -10,6 +10,7 @@ import IconSidebar, { type IconSection } from "../../IconSidebar";
 import ChatComposer from "../../ChatComposer";
 import ChatMessage from "../../ChatMessage";
 import AgentHistoryNav from "./AgentHistoryNav";
+import AgentRosterNav from "./AgentRosterNav";
 
 export default function AgentChatShell({
   agent,
@@ -68,11 +69,20 @@ export default function AgentChatShell({
     router.push(section === "dashboard" ? "/dashboard" : `/dashboard?view=${section}`);
   }
 
+  // Switching agents from the roster panel navigates to that agent's own
+  // page — never back to the dashboard, and never a different panel that
+  // hides the roster.
+  function switchAgent(next: Agent) {
+    if (next.id === agent.id) return;
+    router.push(`/dashboard/agency/${next.id}`);
+  }
+
   const prompts = AGENT_PROMPTS[agent.id] ?? [];
 
   return (
     <div className="flex h-screen bg-core-main">
       <IconSidebar active="agency" onNavigate={onNavigate} userEmail={userEmail} avatarUrl={avatarUrl} />
+      <AgentRosterNav selectedAgentId={agent.id} onSelectAgent={switchAgent} />
       <AgentHistoryNav
         agent={agent}
         history={history}
