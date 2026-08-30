@@ -17,11 +17,45 @@ export default function ProfilePage() {
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
 
   const [photo, setPhoto] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
-    if (user) setDisplayName((user.user_metadata?.display_name as string) ?? "");
+    if (user) {
+      setDisplayName((user.user_metadata?.display_name as string) ?? "");
+      setPhoto((user.user_metadata?.avatar_url as string) ?? null);
+    }
   }, [user]);
+
+  async function uploadPhoto(file: File) {
+    if (!user) return;
+    setUploadingPhoto(true);
+    setPhotoError(null);
+    try {
+      const supabase = createClient();
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${user.id}/avatar.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("profile-photos")
+        .upload(path, file, { upsert: true, cacheControl: "3600" });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from("profile-photos").getPublicUrl(path);
+      // cache-bust so the new photo shows immediately instead of a stale CDN copy
+      const url = `${data.publicUrl}?t=${Date.now()}`;
+      const { error: updateError } = await supabase.auth.updateUser({ data: { avatar_url: url } });
+      if (updateError) throw updateError;
+      setPhoto(url);
+    } catch (err) {
+      setPhotoError(
+        err instanceof Error && err.message.includes("Bucket not found")
+          ? "Photo storage isn't set up on this deployment yet."
+          : "Upload failed — try again."
+      );
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
 
   async function saveName() {
     setSavingName(true);
@@ -125,23 +159,22 @@ export default function ProfilePage() {
               {(user?.email ?? "?").charAt(0).toUpperCase()}
             </div>
           )}
-          <label className={`${secondaryButtonClass} cursor-pointer`}>
-            Upload
+          <label className={`${secondaryButtonClass} cursor-pointer ${uploadingPhoto ? "pointer-events-none opacity-60" : ""}`}>
+            {uploadingPhoto ? "Uploading…" : "Upload"}
             <input
               type="file"
               accept="image/*"
               className="hidden"
+              disabled={uploadingPhoto}
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) setPhoto(URL.createObjectURL(file));
+                if (file) uploadPhoto(file);
+                e.target.value = "";
               }}
             />
           </label>
         </div>
-        <p className="text-xs text-neutral-600">
-          {/* ponytail: no storage bucket wired up — preview only, doesn't persist */}
-          Preview only for now — no storage bucket wired up to persist it.
-        </p>
+        {photoError && <p className="text-xs text-red-400">{photoError}</p>}
       </SettingsCard>
 
       <SettingsCard title="Delete Account" description="Permanently deletes your account and all projects. This cannot be undone.">

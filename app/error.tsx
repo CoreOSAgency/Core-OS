@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 // Next's built-in error-boundary convention — no hand-rolled class component needed.
 export default function GlobalError({
   error,
@@ -8,13 +10,19 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // No error-tracking service (Sentry etc.) is wired up — this at least puts
+  // it in Vercel's function logs instead of vanishing client-side.
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-950 p-6">
       <div className="max-w-md text-center">
         <div className="mb-4 text-4xl">⚠️</div>
         <h2 className="mb-2 text-lg font-bold text-neutral-100">Something went wrong</h2>
         <p className="mb-6 text-sm text-neutral-500">
-          An unexpected error occurred. This has been logged.
+          An unexpected error occurred. Try again, or reload the page.
         </p>
         <details className="mb-6 rounded-lg border border-white/10 bg-core-card p-3 text-left">
           <summary className="cursor-pointer text-xs text-neutral-500">Error details</summary>
