@@ -73,6 +73,8 @@ export default function OrganizationPage() {
         setBrandTone(ctx.brand_tone ?? "");
         setLogoUrl(ctx.logo_url ?? "");
       });
+    // Only refetch when the project actually changes, not on every re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
 
   async function save() {

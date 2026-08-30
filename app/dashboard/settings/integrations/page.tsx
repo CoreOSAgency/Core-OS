@@ -41,6 +41,8 @@ export default function IntegrationsPage() {
     fetch(`/api/projects/${project.id}/context`)
       .then((res) => res.json())
       .then((data: { context?: Record<string, string> }) => setGhlUrl(data.context?.ghl_webhook_url ?? ""));
+    // Only refetch when the project actually changes, not on every re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
 
   async function disconnectDrive() {

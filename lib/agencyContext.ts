@@ -1,45 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-export async function getAgencyContext(
-  supabase: SupabaseClient,
-  userId: string
-): Promise<Record<string, string>> {
-  const { data, error } = await supabase
-    .from("agency_context")
-    .select("key, value")
-    .eq("user_id", userId);
-
-  if (error) throw error;
-  return Object.fromEntries((data ?? []).map((row) => [row.key, row.value]));
-}
-
-export async function saveAgencyContext(
-  supabase: SupabaseClient,
-  userId: string,
-  entries: Record<string, string>
-): Promise<void> {
-  const rows = Object.entries(entries)
-    .filter(([key, value]) => key && typeof value === "string" && value.trim())
-    .map(([key, value]) => ({ user_id: userId, key, value }));
-
-  if (rows.length === 0) return;
-
-  const { error } = await supabase
-    .from("agency_context")
-    .upsert(rows, { onConflict: "user_id,key" });
-
-  if (error) throw error;
-}
-
-export function formatContextForPrompt(context: Record<string, string>): string {
-  const entries = Object.entries(context);
-  if (entries.length === 0) return "";
-
-  return (
-    "\n\n---\nKnown context about this business, saved from earlier conversations with any agent. Use it, don't re-ask for it:\n" +
-    entries.map(([key, value]) => `- ${key}: ${value}`).join("\n")
-  );
-}
+// ponytail: no SupabaseClient import here — account-wide context
+// (getAgencyContext/saveAgencyContext/formatContextForPrompt) was dead code,
+// unreferenced since project-scoped context (lib/projects.ts) replaced it.
+// Removed; project context still flows through
+// formatProjectContextForPrompt in lib/projects.ts.
 
 // Markers Gemini wraps around hidden blocks appended after its visible
 // reply. Both are parsed out and stripped server-side — the user never

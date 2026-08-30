@@ -59,6 +59,7 @@ export default function IconSidebar({
 }) {
   const pathname = usePathname();
   const onSettings = pathname.startsWith("/dashboard/settings");
+  const onWorkflows = pathname.startsWith("/dashboard/workflows");
   const initial = userEmail.trim().charAt(0).toUpperCase() || "?";
 
   return (
@@ -71,10 +72,10 @@ export default function IconSidebar({
         >
           C
         </Link>
-        <NavIcon label="Dashboard" active={!onSettings && !agencyActive} onClick={onDashboard}>
+        <NavIcon label="Dashboard" active={!onSettings && !onWorkflows && !agencyActive} onClick={onDashboard}>
           🏠
         </NavIcon>
-        <NavIcon label="Agency" active={!onSettings && agencyActive} onClick={onAgency}>
+        <NavIcon label="Agency" active={!onSettings && !onWorkflows && agencyActive} onClick={onAgency}>
           🗂
         </NavIcon>
         <NavIcon label="Clients (coming soon)" disabled>
@@ -86,7 +87,7 @@ export default function IconSidebar({
         <NavIcon label="Domains (coming soon)" disabled>
           🌐
         </NavIcon>
-        <NavIcon label="Workflows (coming soon)" disabled>
+        <NavIcon label="Workflows" href="/dashboard/workflows" active={onWorkflows}>
           🧩
         </NavIcon>
       </div>

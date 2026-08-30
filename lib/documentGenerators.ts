@@ -9,6 +9,11 @@ import {
   TableRow,
   TableCell,
   WidthType,
+  Header,
+  Footer,
+  PageNumber,
+  BorderStyle,
+  AlignmentType,
 } from "docx";
 import {
   parseMarkdownToBlocks,
@@ -41,6 +46,38 @@ function cleanPdfText(text: string): string {
 const ACCENT = rgb(0x10 / 255, 0xb9 / 255, 0x81 / 255);
 const INK = rgb(0.1, 0.1, 0.1);
 const MUTED = rgb(0.45, 0.45, 0.45);
+
+// Same accent, as a docx hex color (no '#').
+const DOCX_ACCENT = "10B981";
+
+function docxHeader(): Header {
+  return new Header({
+    children: [
+      new Paragraph({
+        children: [
+          new TextRun({ text: "CoreOS", bold: true, color: DOCX_ACCENT, size: 18 }),
+        ],
+      }),
+    ],
+  });
+}
+
+function docxFooter(): Footer {
+  return new Footer({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [
+          new TextRun({
+            children: [PageNumber.CURRENT],
+            color: "999999",
+            size: 16,
+          }),
+        ],
+      }),
+    ],
+  });
+}
 
 const PAGE_WIDTH = 595.28; // A4
 const PAGE_HEIGHT = 841.89;
@@ -216,7 +253,13 @@ export async function generateDocx({
   const children: (Paragraph | Table)[] = [];
 
   children.push(
-    new Paragraph({ text: title, heading: HeadingLevel.TITLE }),
+    new Paragraph({
+      heading: HeadingLevel.TITLE,
+      children: [new TextRun({ text: title, color: "111111" })],
+      border: {
+        bottom: { style: BorderStyle.SINGLE, size: 6, color: DOCX_ACCENT, space: 8 },
+      },
+    }),
   );
   const subtitle = [agentName && `by ${agentName}`, projectName]
     .filter(Boolean)
@@ -225,7 +268,7 @@ export async function generateDocx({
     children.push(
       new Paragraph({
         children: [new TextRun({ text: subtitle, italics: true, color: "666666" })],
-        spacing: { after: 200 },
+        spacing: { before: 120, after: 200 },
       })
     );
   }
@@ -305,7 +348,13 @@ export async function generateDocx({
   const doc = new Document({
     creator: agentName ?? "CoreOS",
     title,
-    sections: [{ children }],
+    sections: [
+      {
+        headers: { default: docxHeader() },
+        footers: { default: docxFooter() },
+        children,
+      },
+    ],
   });
 
   return Packer.toBuffer(doc);

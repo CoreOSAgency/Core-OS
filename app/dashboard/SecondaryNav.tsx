@@ -2,15 +2,17 @@
 
 import { agentSections, type Agent } from "@/lib/agents";
 
+// All disabled today — none has a page wired up yet. Every entry is tagged
+// "SOON" so a dead button never reads as a live one.
 const TOOLS = [
-  { label: "Meta Ads", soon: false },
-  { label: "Google Ads", soon: false },
-  { label: "Static Ads", soon: false },
-  { label: "Landing Pages", soon: false },
-  { label: "Lead Scraper", soon: false },
-  { label: "Sales Pipeline", soon: true },
-  { label: "Website Builder", soon: true },
-  { label: "Ads Manager", soon: true },
+  "Meta Ads",
+  "Google Ads",
+  "Static Ads",
+  "Landing Pages",
+  "Lead Scraper",
+  "Sales Pipeline",
+  "Website Builder",
+  "Ads Manager",
 ];
 
 export default function SecondaryNav({
@@ -82,18 +84,16 @@ export default function SecondaryNav({
           </p>
           <ul>
             {TOOLS.map((tool) => (
-              <li key={tool.label}>
+              <li key={tool}>
                 <button
                   disabled
                   title="Coming soon"
                   className="flex w-full cursor-default items-center justify-between rounded-lg px-3 py-1.5 text-left text-sm text-neutral-500"
                 >
-                  {tool.label}
-                  {tool.soon && (
-                    <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-neutral-500">
-                      SOON
-                    </span>
-                  )}
+                  {tool}
+                  <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-neutral-500">
+                    SOON
+                  </span>
                 </button>
               </li>
             ))}

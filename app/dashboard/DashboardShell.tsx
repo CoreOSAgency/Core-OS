@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Agent } from "@/lib/agents";
 import type { Project } from "@/lib/projects";
+import { extractDriveFolderId } from "@/lib/googleDrive";
 import AgencyOverview from "./AgencyOverview";
 import AgentGrid from "./AgentGrid";
 import ChatPanel from "./ChatPanel";
@@ -13,14 +14,6 @@ import ProjectMemoryPanel from "./ProjectMemoryPanel";
 import SecondaryNav from "./SecondaryNav";
 
 const ACTIVE_PROJECT_KEY = "coreos_active_project_id";
-
-function extractDriveFolderId(input: string): string | null {
-  const trimmed = input.trim();
-  const match = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
-  if (/^[a-zA-Z0-9_-]{10,}$/.test(trimmed)) return trimmed;
-  return null;
-}
 
 export default function DashboardShell({ userEmail }: { userEmail: string }) {
   const [projects, setProjects] = useState<Project[]>([]);

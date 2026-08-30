@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Project } from "@/lib/projects";
+import { extractDriveFolderId } from "@/lib/googleDrive";
 
 const STEPS = ["Agency", "Offer", "Market & Goals", "Integrations"];
 
@@ -48,12 +49,7 @@ export default function OnboardingWizard({
         });
       }
 
-      const driveFolderMatch = driveFolderUrl.trim().match(/\/folders\/([a-zA-Z0-9_-]+)/);
-      const driveFolderId = driveFolderMatch
-        ? driveFolderMatch[1]
-        : /^[a-zA-Z0-9_-]{10,}$/.test(driveFolderUrl.trim())
-          ? driveFolderUrl.trim()
-          : "";
+      const driveFolderId = extractDriveFolderId(driveFolderUrl) ?? "";
 
       await fetch(`/api/projects/${project.id}/context`, {
         method: "POST",
