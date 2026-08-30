@@ -5,18 +5,12 @@ import type { IconSection } from "./IconSidebar";
 
 export type AgencySubView = "overview" | "integrations" | "media" | "settings";
 
-// All disabled today — none has a page wired up yet. Every entry is tagged
-// "SOON" so a dead button never reads as a live one.
-const TOOLS = [
-  "Meta Ads",
-  "Google Ads",
-  "Static Ads",
-  "Landing Pages",
-  "Lead Scraper",
-  "Sales Pipeline",
-  "Website Builder",
-  "Ads Manager",
-];
+// Meta Ads/Google Ads/Static Ads/Landing Pages/Lead Scraper are next up —
+// they're clickable and open an honest "not wired up yet" panel rather than
+// a disabled dead-end. Sales Pipeline/Website Builder/Ads Manager are
+// further out, so they keep the disabled SOON treatment.
+const LIVE_TOOLS = ["Meta Ads", "Google Ads", "Static Ads", "Landing Pages", "Lead Scraper"];
+const SOON_TOOLS = ["Sales Pipeline", "Website Builder", "Ads Manager"];
 
 const AGENCY_SUB_ITEMS: { id: AgencySubView; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -52,12 +46,14 @@ export default function SecondaryNav({
   onAgencySubView,
   selectedAgentId,
   onSelectAgent,
+  onToolClick,
 }: {
   section: Exclude<IconSection, "workflows" | "settings">;
   agencySubView: AgencySubView;
   onAgencySubView: (v: AgencySubView) => void;
   selectedAgentId: string | null;
   onSelectAgent: (agent: Agent) => void;
+  onToolClick: (tool: string) => void;
 }) {
   return (
     <nav className="flex h-full min-h-0 w-[200px] shrink-0 flex-col overflow-y-auto border-r border-white/5 bg-core-nav">
@@ -113,7 +109,17 @@ export default function SecondaryNav({
             <div>
               <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">TOOLS</p>
               <ul>
-                {TOOLS.map((tool) => (
+                {LIVE_TOOLS.map((tool) => (
+                  <li key={tool}>
+                    <button
+                      onClick={() => onToolClick(tool)}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left text-sm text-neutral-300 hover:bg-white/5"
+                    >
+                      {tool}
+                    </button>
+                  </li>
+                ))}
+                {SOON_TOOLS.map((tool) => (
                   <li key={tool}>
                     <button
                       disabled

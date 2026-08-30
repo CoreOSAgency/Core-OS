@@ -45,6 +45,7 @@ export default function DashboardShell({
 
   const [section, setSection] = useState<Section>("dashboard");
   const [agencySubView, setAgencySubView] = useState<AgencySubView>("overview");
+  const [activeTool, setActiveTool] = useState<string | null>(null);
   const [lastAgent, setLastAgent] = useState<Agent | null>(null);
 
   const searchParams = useSearchParams();
@@ -166,6 +167,7 @@ export default function DashboardShell({
   function onNavigate(next: IconSection) {
     if (next === "workflows") return router.push("/dashboard/workflows");
     if (next === "settings") return router.push("/dashboard/settings/organization");
+    setActiveTool(null);
     setSection(next);
   }
 
@@ -195,9 +197,13 @@ export default function DashboardShell({
       <SecondaryNav
         section={section}
         agencySubView={agencySubView}
-        onAgencySubView={setAgencySubView}
+        onAgencySubView={(v) => {
+          setActiveTool(null);
+          setAgencySubView(v);
+        }}
         selectedAgentId={lastAgent?.id ?? null}
         onSelectAgent={selectAgent}
+        onToolClick={setActiveTool}
       />
 
       <main className="min-h-0 flex-1 overflow-y-auto bg-core-main">
@@ -357,7 +363,21 @@ export default function DashboardShell({
           ) : section === "dashboard" ? (
             <AgentGrid onSelect={selectAgent} />
           ) : section === "agency" ? (
-            agencySubView === "overview" ? (
+            activeTool ? (
+              <div className="rounded-xl border border-dashed border-white/10 bg-core-card/50 p-10 text-center">
+                <div className="mb-2 text-2xl">🛠️</div>
+                <h3 className="font-medium text-neutral-200">{activeTool} isn&apos;t wired up yet</h3>
+                <p className="mx-auto mt-1 max-w-sm text-sm text-neutral-500">
+                  This tool is on the roadmap but has no working page behind it yet.
+                </p>
+                <button
+                  onClick={() => setActiveTool(null)}
+                  className="mt-4 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-300 hover:bg-white/5"
+                >
+                  Back to Overview
+                </button>
+              </div>
+            ) : agencySubView === "overview" ? (
               <AgencyOverview projectId={activeProjectId} projectName={activeProject?.name ?? ""} />
             ) : agencySubView === "integrations" ? (
               <AgencyIntegrations />
