@@ -96,11 +96,13 @@ export async function POST(request: Request) {
   const tagline =
     $("h1").first().text().trim() || meta("og:title") || $("title").first().text().trim();
 
+  // Prefer an actual logo <img> on the page — it's the real brand mark, a
+  // favicon is a fallback for sites that don't tag one.
   const logoCandidate =
-    $('link[rel="apple-touch-icon"]').attr("href") ||
-    $('link[rel="icon"]').attr("href") ||
     $('img[class*="logo" i], img[id*="logo" i], img[alt*="logo" i]').first().attr("src") ||
-    meta("og:image");
+    $('link[rel="apple-touch-icon"]').attr("href") ||
+    meta("og:image") ||
+    $('link[rel="icon"]').attr("href");
 
   const extracted = {
     company_name: companyName.trim(),

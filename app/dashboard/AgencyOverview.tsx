@@ -20,6 +20,37 @@ function labelFor(key: string): string {
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function ColorSwatches({ value }: { value: string }) {
+  const colors = value.split(",").map((c) => c.trim()).filter(Boolean);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copy(hex: string) {
+    navigator.clipboard?.writeText(hex).then(() => {
+      setCopied(hex);
+      setTimeout(() => setCopied(null), 1200);
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {colors.map((hex) => (
+        <button
+          key={hex}
+          onClick={() => copy(hex)}
+          title="Click to copy"
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-core-main px-2 py-1 text-xs text-neutral-300 hover:border-core-purple/50"
+        >
+          <span
+            className="h-4 w-4 rounded-full border border-white/20"
+            style={{ backgroundColor: /^#[0-9a-fA-F]{3,6}$/.test(hex) ? hex : "transparent" }}
+          />
+          {copied === hex ? "Copied!" : hex}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function AgencyOverview({
   projectId,
   projectName,
@@ -30,11 +61,18 @@ export default function AgencyOverview({
   const [context, setContext] = useState<Record<string, string> | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [scanUrl, setScanUrl] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   function load() {
     fetch(`/api/projects/${projectId}/context`)
       .then((res) => res.json())
-      .then((data: { context?: Record<string, string> }) => setContext(data.context ?? {}));
+      .then((data: { context?: Record<string, string> }) => {
+        const ctx = data.context ?? {};
+        setContext(ctx);
+        setScanUrl((prev) => prev || ctx.website_url || "");
+      });
   }
 
   useEffect(load, [projectId]);
@@ -47,6 +85,27 @@ export default function AgencyOverview({
     });
     setEditingKey(null);
     load();
+  }
+
+  async function scanForBrandIdentity() {
+    const url = scanUrl.trim();
+    if (!url) return;
+    setScanning(true);
+    setScanError(null);
+    try {
+      const res = await fetch("/api/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, projectId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Couldn't scan that site");
+      load();
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : "Couldn't scan that site");
+    } finally {
+      setScanning(false);
+    }
   }
 
   if (context === null) {
@@ -65,14 +124,42 @@ export default function AgencyOverview({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {allSections.map((section) => {
           const fields = section.keys.filter((k) => context[k]);
+          const isBrandIdentity = section.title === "Brand Identity";
+
           return (
             <div
               key={section.title}
-              className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4"
+              className="rounded-xl border border-white/10 bg-core-card p-4"
             >
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-emerald-400">
-                {section.title}
-              </h3>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-core-purple">
+                  {section.title}
+                </h3>
+              </div>
+
+              {isBrandIdentity && (
+                <div className="mb-4 space-y-2 rounded-lg border border-white/10 bg-core-main p-3">
+                  <p className="text-xs text-neutral-500">
+                    Scan a website to pull logo, brand colors, name, and tagline automatically.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      value={scanUrl}
+                      onChange={(e) => setScanUrl(e.target.value)}
+                      placeholder="https://youragency.com"
+                      className="w-full rounded-lg border border-white/10 bg-core-card px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-core-purple"
+                    />
+                    <button
+                      onClick={scanForBrandIdentity}
+                      disabled={scanning || !scanUrl.trim()}
+                      className="shrink-0 rounded-lg bg-core-purple px-3 py-1.5 text-xs font-medium text-white hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {scanning ? "Scanning…" : "Scan for brand identity"}
+                    </button>
+                  </div>
+                  {scanError && <p className="text-xs text-red-400">{scanError}</p>}
+                </div>
+              )}
 
               {fields.length === 0 && (
                 <p className="text-sm text-neutral-600">Nothing saved yet.</p>
@@ -83,13 +170,13 @@ export default function AgencyOverview({
                   <div key={key}>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-neutral-500">{labelFor(key)}</span>
-                      {editingKey !== key && (
+                      {editingKey !== key && key !== "logo_url" && (
                         <button
                           onClick={() => {
                             setEditingKey(key);
                             setEditValue(context[key]);
                           }}
-                          className="text-xs text-neutral-500 hover:text-emerald-400"
+                          className="text-xs text-neutral-500 hover:text-core-purple"
                         >
                           Edit
                         </button>
@@ -101,14 +188,39 @@ export default function AgencyOverview({
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           autoFocus
-                          className="w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+                          className="w-full rounded border border-white/10 bg-core-main px-2 py-1 text-sm text-neutral-100 outline-none focus:border-core-purple"
                         />
                         <button
                           onClick={() => saveEdit(key)}
-                          className="rounded bg-emerald-500 px-2 py-1 text-xs font-medium text-neutral-950 hover:bg-emerald-400"
+                          className="rounded bg-core-purple px-2 py-1 text-xs font-medium text-white hover:bg-core-purple/80"
                         >
                           Save
                         </button>
+                      </div>
+                    ) : key === "logo_url" ? (
+                      <div className="mt-1 flex items-center gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={context[key]}
+                          alt="Logo"
+                          className="h-10 w-10 rounded-lg border border-white/10 bg-white/5 object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            setEditingKey(key);
+                            setEditValue(context[key]);
+                          }}
+                          className="text-xs text-neutral-500 hover:text-core-purple"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    ) : key === "brand_colours" ? (
+                      <div className="mt-1">
+                        <ColorSwatches value={context[key]} />
                       </div>
                     ) : (
                       <p className="text-sm text-neutral-200">{context[key]}</p>
