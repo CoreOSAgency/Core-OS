@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Agent } from "@/lib/agents";
+import { findAgent, type Agent } from "@/lib/agents";
 import type { ChatMode } from "@/lib/modelRouter";
 import { CHAT_MODE_KEY } from "@/lib/localStorageKeys";
 import { extractTableData, parseMarkdownToSlides } from "@/lib/markdownToBlocks";
@@ -15,11 +15,19 @@ export type ChatTurn = {
   contextSaved?: boolean;
   isDeliverable?: boolean;
   groundingSources?: GroundingSource[];
+  agentId?: string;
+  agentName?: string;
+  suggestedAgentId?: string | null;
 };
 
 const CHAT_MODES: ChatMode[] = ["quick", "standard", "deep"];
 
-export type ConversationSummary = { id: string; title: string | null; updated_at: string };
+export type ConversationSummary = {
+  id: string;
+  title: string | null;
+  updated_at: string;
+  participant_agent_ids?: string[];
+};
 
 const SPREADSHEET_COMMAND = /export as spreadsheet|create a spreadsheet/i;
 
@@ -57,6 +65,10 @@ export function useAgentChat({
 }) {
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [mode, setModeState] = useState<ChatMode>("standard");
+  // Multi-agent: `participants` is everyone in the thread; `activeAgent` is
+  // who the next message routes to (starts as the panel's agent).
+  const [participants, setParticipants] = useState<Agent[]>([]);
+  const [activeAgent, setActiveAgent] = useState<Agent | null>(agent);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState<ConversationSummary[] | null>(null);
@@ -100,6 +112,8 @@ export function useAgentChat({
     setMessages([]);
     setConversationId(null);
     setDriveLinks({});
+    setActiveAgent(agent);
+    setParticipants(agent ? [agent] : []);
 
     if (!agent || !projectId) return;
 
@@ -120,24 +134,40 @@ export function useAgentChat({
   }, [messages, sending, showHistory]);
 
   async function loadConversation(id: string) {
-    const res = await fetch(`/api/conversations/${id}/messages`);
-    const data = await res.json();
-    const loaded: ChatTurn[] = (data.messages ?? []).map(
+    const [msgRes, partRes] = await Promise.all([
+      fetch(`/api/conversations/${id}/messages`).then((r) => r.json()),
+      fetch(`/api/conversations/${id}/participants`).then((r) => r.json()),
+    ]);
+    const loaded: ChatTurn[] = (msgRes.messages ?? []).map(
       (m: {
         role: "user" | "model";
         content: string;
         context_saved: boolean;
         is_deliverable: boolean;
         grounding_sources?: GroundingSource[];
+        agent_id?: string | null;
       }) => ({
         role: m.role,
         text: m.content,
         contextSaved: m.context_saved,
         isDeliverable: m.is_deliverable,
         groundingSources: m.grounding_sources ?? [],
+        agentId: m.agent_id ?? undefined,
+        agentName: m.agent_id ? findAgent(m.agent_id)?.name : undefined,
       })
     );
+    const parts: Agent[] = ((partRes.participants ?? []) as string[])
+      .map((pid) => findAgent(pid))
+      .filter((a): a is Agent => !!a);
+
     setMessages(loaded);
+    setParticipants(parts.length ? parts : agent ? [agent] : []);
+    // Keep the current active agent if it's in the thread, else fall back to
+    // the panel's agent or the first participant.
+    setActiveAgent((prev) => {
+      if (prev && parts.some((p) => p.id === prev.id)) return prev;
+      return agent ?? parts[0] ?? null;
+    });
     setConversationId(id);
     setShowHistory(false);
   }
@@ -154,24 +184,48 @@ export function useAgentChat({
     setMessages([]);
     setConversationId(null);
     setShowHistory(false);
+    setActiveAgent(agent);
+    setParticipants(agent ? [agent] : []);
+  }
+
+  // Bring another agent into the current thread and route the next message to
+  // them. Nothing is sent until the user writes and submits it.
+  async function addParticipant(next: Agent) {
+    setParticipants((prev) =>
+      prev.some((p) => p.id === next.id) ? prev : [...prev, next]
+    );
+    setActiveAgent(next);
+    if (conversationId) {
+      await fetch(`/api/conversations/${conversationId}/participants`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId: next.id }),
+      }).catch(() => {
+        // best-effort — the server also records participants when an agent answers
+      });
+    }
   }
 
   async function sendMessage(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || !agent || !projectId || sending) return;
+    const routeTo = activeAgent ?? agent;
+    if (!trimmed || !routeTo || !projectId || sending) return;
 
     const history = messages;
     setMessages([...history, { role: "user", text: trimmed }]);
     setInput("");
     setSending(true);
     setError(null);
+    setParticipants((prev) =>
+      prev.some((p) => p.id === routeTo.id) ? prev : [...prev, routeTo]
+    );
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          agentId: agent.id,
+          agentId: routeTo.id,
           message: trimmed,
           projectId,
           conversationId,
@@ -194,6 +248,9 @@ export function useAgentChat({
           contextSaved: data.contextSaved,
           isDeliverable: data.isDeliverable,
           groundingSources: data.groundingSources ?? [],
+          agentId: routeTo.id,
+          agentName: routeTo.name,
+          suggestedAgentId: data.suggestedAgentId ?? null,
         },
       ]);
 
@@ -311,6 +368,10 @@ export function useAgentChat({
     messages,
     mode,
     setMode,
+    participants,
+    activeAgent,
+    setActiveAgent,
+    addParticipant,
     conversationId,
     showHistory,
     setShowHistory,

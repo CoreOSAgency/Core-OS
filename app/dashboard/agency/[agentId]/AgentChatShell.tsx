@@ -133,6 +133,8 @@ export default function AgentChatShell({
                       index={i}
                       agent={agent}
                       showAvatar
+                      multiAgent={chat.participants.length > 1}
+                      onAcceptHandoff={chat.addParticipant}
                       driveConnected={driveConnected}
                       downloading={chat.downloading}
                       driveLinks={chat.driveLinks}
@@ -144,7 +146,9 @@ export default function AgentChatShell({
                   ))}
                   {chat.sending && (
                     <div className="rounded-lg bg-core-card px-3 py-2 text-sm text-neutral-400">
-                      {chat.mode === "deep" ? "Researching…" : `${agent.name} is typing…`}
+                      {chat.mode === "deep"
+                        ? "Researching…"
+                        : `${chat.activeAgent?.name ?? agent.name} is typing…`}
                     </div>
                   )}
                   {chat.error && <p className="text-sm text-core-scarlet">{chat.error}</p>}
@@ -154,13 +158,17 @@ export default function AgentChatShell({
 
             <div className="mx-auto w-full max-w-3xl">
               <ChatComposer
-                agentName={agent.name}
+                agentName={chat.activeAgent?.name ?? agent.name}
                 input={chat.input}
                 onInputChange={chat.setInput}
                 onSubmit={chat.sendMessage}
                 sending={chat.sending}
                 mode={chat.mode}
                 onModeChange={chat.setMode}
+                participants={chat.participants}
+                activeAgentId={chat.activeAgent?.id}
+                onSelectAgent={chat.setActiveAgent}
+                onAddParticipant={chat.addParticipant}
               />
             </div>
           </>

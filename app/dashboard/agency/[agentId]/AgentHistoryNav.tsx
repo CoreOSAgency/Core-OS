@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Agent } from "@/lib/agents";
 import { relativeTime, type ConversationSummary } from "@/lib/useAgentChat";
+import ParticipantStack from "../../ParticipantStack";
 
 export default function AgentHistoryNav({
   agent,
@@ -61,7 +62,10 @@ export default function AgentHistoryNav({
               c.id === activeConversationId ? "bg-white/5 text-neutral-100" : "text-neutral-300"
             }`}
           >
-            <span className="block truncate">{c.title || "New chat"}</span>
+            <span className="flex items-center gap-2">
+              <span className="block flex-1 truncate">{c.title || "New chat"}</span>
+              <ParticipantStack agentIds={c.participant_agent_ids} />
+            </span>
             <span className="text-xs text-neutral-500">{relativeTime(c.updated_at)}</span>
           </button>
         ))}

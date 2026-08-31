@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Agent } from "@/lib/agents";
+import { findAgent, type Agent } from "@/lib/agents";
 import { extractTableData, hasSlideStructure } from "@/lib/markdownToBlocks";
 import type { ChatTurn } from "@/lib/useAgentChat";
 
@@ -84,6 +85,8 @@ export default function ChatMessage({
   index,
   agent,
   showAvatar,
+  multiAgent,
+  onAcceptHandoff,
   driveConnected,
   downloading,
   driveLinks,
@@ -96,6 +99,8 @@ export default function ChatMessage({
   index: number;
   agent: Agent;
   showAvatar?: boolean;
+  multiAgent?: boolean;
+  onAcceptHandoff?: (a: Agent) => void;
   driveConnected: boolean;
   downloading: string | null;
   driveLinks: Record<string, string>;
@@ -105,12 +110,20 @@ export default function ChatMessage({
   onSaveToDrive: (index: number, type: "pdf" | "docx" | "xlsx" | "pptx", text: string) => void;
 }) {
   const isUser = turn.role === "user";
+  const [handoffDismissed, setHandoffDismissed] = useState(false);
+  // In a multi-agent thread each model bubble shows who actually spoke.
+  const speaker =
+    (turn.agentId ? findAgent(turn.agentId) : null) ?? agent;
+  const suggested =
+    turn.role === "model" && turn.suggestedAgentId
+      ? findAgent(turn.suggestedAgentId)
+      : null;
 
   return (
     <div className={`flex items-start gap-2 ${isUser ? "justify-end" : "justify-start"}`}>
       {!isUser && showAvatar && (
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-core-card text-sm">
-          {agent.emoji}
+          {speaker.emoji}
         </span>
       )}
       <div
@@ -118,12 +131,33 @@ export default function ChatMessage({
           isUser ? "bg-core-teal text-[#05221f]" : "bg-core-card text-neutral-100"
         }`}
       >
+        {!isUser && multiAgent && (
+          <p className="mb-1 text-xs font-semibold text-core-amber">
+            {speaker.emoji} {speaker.name}
+          </p>
+        )}
         {turn.role === "model" ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {turn.text}
           </ReactMarkdown>
         ) : (
           turn.text
+        )}
+        {suggested && !handoffDismissed && (
+          <div className="mt-2 flex items-center gap-2 border-t border-neutral-700/60 pt-2">
+            <button
+              onClick={() => onAcceptHandoff?.(suggested)}
+              className="rounded-full bg-core-teal px-3 py-1 text-xs font-medium text-[#05221f] hover:bg-core-teal/90"
+            >
+              Bring in {suggested.name}
+            </button>
+            <button
+              onClick={() => setHandoffDismissed(true)}
+              className="text-xs text-neutral-500 hover:text-neutral-300"
+            >
+              Dismiss
+            </button>
+          </div>
         )}
         {turn.contextSaved && <p className="mt-1.5 text-xs text-core-green/80">✓ Project memory saved</p>}
         {turn.role === "model" && turn.groundingSources && turn.groundingSources.length > 0 && (

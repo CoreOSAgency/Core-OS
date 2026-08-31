@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildSystemPrompt } from "@/lib/systemPrompts";
+import { findAgent } from "@/lib/agents";
 import {
   extractGroundingSources,
   getModelConfig,
@@ -9,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   extractContextBlock,
   extractDeliverableFlag,
+  extractHandoffSuggestion,
   SHARED_AGENT_BEHAVIOR,
 } from "@/lib/agencyContext";
 import {
@@ -16,9 +18,14 @@ import {
   getProjectContext,
   saveProjectContext,
 } from "@/lib/projects";
-import { appendTurn, createConversation } from "@/lib/conversations";
+import { addParticipant, appendTurn, createConversation } from "@/lib/conversations";
 
-type ChatTurn = { role: "user" | "model"; text: string };
+type ChatTurn = {
+  role: "user" | "model";
+  text: string;
+  agentId?: string;
+  agentName?: string;
+};
 
 const MODES: ChatMode[] = ["quick", "standard", "deep"];
 
@@ -85,11 +92,17 @@ export async function POST(request: Request) {
     formatProjectContextForPrompt(savedContext) +
     SHARED_AGENT_BEHAVIOR;
 
+  // In a multi-agent thread, label each prior model turn with who said it so
+  // the agent answering now knows which lines were someone else talking.
+  // No label when it's the same agent (talking to itself).
   const contents = [
-    ...history.map((turn) => ({
-      role: turn.role,
-      parts: [{ text: turn.text }],
-    })),
+    ...history.map((turn) => {
+      const label =
+        turn.role === "model" && turn.agentId && turn.agentId !== agentId
+          ? `[${turn.agentName ?? turn.agentId}]: `
+          : "";
+      return { role: turn.role, parts: [{ text: label + turn.text }] };
+    }),
     { role: "user", parts: [{ text: message }] },
   ];
 
@@ -179,7 +192,17 @@ export async function POST(request: Request) {
     contextSaved = true;
   }
 
-  const { text: reply, isDeliverable } = extractDeliverableFlag(afterContext);
+  const { text: afterDeliverable, isDeliverable } =
+    extractDeliverableFlag(afterContext);
+
+  // A handoff suggestion only counts if it names a real agent that isn't the
+  // one who just answered.
+  const { text: reply, suggestedAgentId: rawSuggestion } =
+    extractHandoffSuggestion(afterDeliverable);
+  const suggestedAgentId =
+    rawSuggestion && rawSuggestion !== agentId && findAgent(rawSuggestion)
+      ? rawSuggestion
+      : null;
 
   // Persist the turn. A conversation is created on first message in a
   // fresh chat; the client tracks the id from here for the rest of it.
@@ -195,7 +218,12 @@ export async function POST(request: Request) {
     modelUsed,
     thinkingLevel: config.thinkingLevel,
     groundingSources,
+    agentId,
   });
+
+  // The first time an agent answers in a thread, it becomes a participant.
+  // This is what makes a thread "become" multi-agent, no separate action.
+  await addParticipant(supabase, activeConversationId, agentId);
 
   return NextResponse.json({
     reply,
@@ -203,5 +231,6 @@ export async function POST(request: Request) {
     isDeliverable,
     conversationId: activeConversationId,
     groundingSources,
+    suggestedAgentId,
   });
 }

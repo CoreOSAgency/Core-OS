@@ -4,6 +4,7 @@ export type Conversation = {
   id: string;
   title: string | null;
   updated_at: string;
+  participant_agent_ids: string[];
 };
 
 export type GroundingSource = { title: string; url: string };
@@ -17,6 +18,7 @@ export type StoredMessage = {
   model_used: string | null;
   thinking_level: string | null;
   grounding_sources: GroundingSource[];
+  agent_id: string | null;
 };
 
 export async function listConversations(
@@ -26,13 +28,26 @@ export async function listConversations(
 ): Promise<Conversation[]> {
   const { data, error } = await supabase
     .from("conversations")
-    .select("id, title, updated_at")
+    .select("id, title, updated_at, conversation_participants(agent_id)")
     .eq("project_id", projectId)
     .eq("agent_id", agentId)
     .order("updated_at", { ascending: false });
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map((row) => {
+    const r = row as unknown as {
+      id: string;
+      title: string | null;
+      updated_at: string;
+      conversation_participants: { agent_id: string }[] | null;
+    };
+    return {
+      id: r.id,
+      title: r.title,
+      updated_at: r.updated_at,
+      participant_agent_ids: (r.conversation_participants ?? []).map((p) => p.agent_id),
+    };
+  });
 }
 
 export async function createConversation(
@@ -47,7 +62,38 @@ export async function createConversation(
     .single();
 
   if (error) throw error;
-  return data;
+  // The starting agent becomes the first participant; route.ts also upserts
+  // this, but doing it here keeps a freshly created conversation consistent.
+  await addParticipant(supabase, data.id, agentId);
+  return { ...data, participant_agent_ids: [agentId] };
+}
+
+export async function listParticipants(
+  supabase: SupabaseClient,
+  conversationId: string
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("conversation_participants")
+    .select("agent_id")
+    .eq("conversation_id", conversationId)
+    .order("added_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => r.agent_id as string);
+}
+
+// Idempotent: does nothing if the agent is already a participant.
+export async function addParticipant(
+  supabase: SupabaseClient,
+  conversationId: string,
+  agentId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("conversation_participants")
+    .upsert(
+      { conversation_id: conversationId, agent_id: agentId },
+      { onConflict: "conversation_id,agent_id", ignoreDuplicates: true }
+    );
+  if (error) throw error;
 }
 
 export async function getMessages(
@@ -57,7 +103,7 @@ export async function getMessages(
   const { data, error } = await supabase
     .from("messages")
     .select(
-      "role, content, context_saved, is_deliverable, mode, model_used, thinking_level, grounding_sources"
+      "role, content, context_saved, is_deliverable, mode, model_used, thinking_level, grounding_sources, agent_id"
     )
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
@@ -81,6 +127,7 @@ export async function appendTurn(
     modelUsed: string;
     thinkingLevel: string;
     groundingSources: GroundingSource[];
+    agentId: string;
   }
 ): Promise<void> {
   // Both rows list every column explicitly — a batch insert where rows have
@@ -97,6 +144,7 @@ export async function appendTurn(
       model_used: null,
       thinking_level: null,
       grounding_sources: [],
+      agent_id: null,
     },
     {
       conversation_id: conversationId,
@@ -108,6 +156,7 @@ export async function appendTurn(
       model_used: meta.modelUsed,
       thinking_level: meta.thinkingLevel,
       grounding_sources: meta.groundingSources,
+      agent_id: meta.agentId,
     },
   ]);
   if (insertError) throw insertError;

@@ -4,6 +4,7 @@ import type { Agent } from "@/lib/agents";
 import { relativeTime, useAgentChat } from "@/lib/useAgentChat";
 import ChatComposer from "./ChatComposer";
 import ChatMessage from "./ChatMessage";
+import ParticipantStack from "./ParticipantStack";
 
 // Inline agent chat panel — the Agency section's right rail, showing the
 // most recently opened agent. Full conversations happen on their own page
@@ -93,7 +94,10 @@ export default function ChatPanel({
                           c.id === chat.conversationId ? "bg-white/5 text-neutral-100" : "text-neutral-300"
                         }`}
                       >
-                        <span className="block truncate">{c.title || "New chat"}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="block flex-1 truncate">{c.title || "New chat"}</span>
+                          <ParticipantStack agentIds={c.participant_agent_ids} />
+                        </span>
                         <span className="text-xs text-neutral-500">{relativeTime(c.updated_at)}</span>
                       </button>
                     </li>
@@ -115,6 +119,8 @@ export default function ChatPanel({
                     turn={turn}
                     index={i}
                     agent={agent}
+                    multiAgent={chat.participants.length > 1}
+                    onAcceptHandoff={chat.addParticipant}
                     driveConnected={driveConnected}
                     downloading={chat.downloading}
                     driveLinks={chat.driveLinks}
@@ -127,7 +133,9 @@ export default function ChatPanel({
 
                 {chat.sending && (
                   <div className="max-w-[85%] rounded-lg bg-core-card px-3 py-2 text-sm text-neutral-400">
-                    {chat.mode === "deep" ? "Researching…" : `${agent.name} is typing…`}
+                    {chat.mode === "deep"
+                      ? "Researching…"
+                      : `${chat.activeAgent?.name ?? agent.name} is typing…`}
                   </div>
                 )}
 
@@ -137,13 +145,17 @@ export default function ChatPanel({
 
             {!chat.showHistory && (
               <ChatComposer
-                agentName={agent.name}
+                agentName={chat.activeAgent?.name ?? agent.name}
                 input={chat.input}
                 onInputChange={chat.setInput}
                 onSubmit={chat.sendMessage}
                 sending={chat.sending}
                 mode={chat.mode}
                 onModeChange={chat.setMode}
+                participants={chat.participants}
+                activeAgentId={chat.activeAgent?.id}
+                onSelectAgent={chat.setActiveAgent}
+                onAddParticipant={chat.addParticipant}
               />
             )}
           </>

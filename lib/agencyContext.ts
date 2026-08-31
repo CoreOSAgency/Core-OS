@@ -9,6 +9,7 @@
 // sees them or the fact that they're there.
 const CONTEXT_BLOCK_PATTERN = /<<<CONTEXT>>>([\s\S]*?)<<<END>>>/;
 const DELIVERABLE_PATTERN = /<<<DELIVERABLE>>>/;
+const SUGGEST_AGENT_PATTERN = /<<<SUGGEST_AGENT>>>(\w+)<<<END>>>/;
 
 export function extractContextBlock(reply: string): {
   text: string;
@@ -39,6 +40,21 @@ export function extractDeliverableFlag(reply: string): {
   return { text: reply.replace(DELIVERABLE_PATTERN, "").trim(), isDeliverable };
 }
 
+// Strips the handoff-suggestion marker and returns the suggested agent id, if
+// any. Run AFTER extractContextBlock and extractDeliverableFlag. route.ts
+// still validates the id against the real roster before trusting it.
+export function extractHandoffSuggestion(reply: string): {
+  text: string;
+  suggestedAgentId: string | null;
+} {
+  const match = reply.match(SUGGEST_AGENT_PATTERN);
+  if (!match) return { text: reply, suggestedAgentId: null };
+  return {
+    text: reply.replace(SUGGEST_AGENT_PATTERN, "").trim(),
+    suggestedAgentId: match[1],
+  };
+}
+
 export const SHARED_AGENT_BEHAVIOR = `
 
 ---
@@ -57,4 +73,6 @@ When in doubt, leave it off. A great, thorough, well-formatted answer to a quest
 
 4. Spreadsheet requests. If the user explicitly asks to "export as spreadsheet" or "create a spreadsheet" (or clearly asks for a list/data export), format your ENTIRE reply as a single clean markdown table with clear column headers - no prose before or after it, just the table - and flag it as a deliverable per rule 3.
 
-5. Presentation requests. If the user asks for a presentation, pitch deck, or slides, structure your reply as a series of "## " headings - one per slide - each followed by 3-6 short bullet points, no long paragraphs - and flag it as a deliverable per rule 3.`;
+5. Presentation requests. If the user asks for a presentation, pitch deck, or slides, structure your reply as a series of "## " headings - one per slide - each followed by 3-6 short bullet points, no long paragraphs - and flag it as a deliverable per rule 3.
+
+6. Suggesting a handoff. If this request would genuinely be better handled by a specific specialist on the roster and you haven't already suggested it in this conversation, you may end your reply with <<<SUGGEST_AGENT>>>agent_id<<<END>>> on its own line, after everything else. Still give your own best answer first - this is additive, never a substitute for answering. Only suggest once per topic, don't repeat it every turn if the user doesn't act on it.`;
