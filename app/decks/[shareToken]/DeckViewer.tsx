@@ -41,7 +41,7 @@ function Slide({
     height: SLIDE_H,
     position: "relative",
     overflow: "hidden",
-    background: `#${model.bg}`,
+    background: model.bgCss ?? `#${model.bg ?? "0b0c0e"}`,
     fontFamily: DECK_FONT_STACK,
     color: `#${model.text}`,
     flex: "0 0 auto",

@@ -29,6 +29,19 @@ assert.ok(fitBodyFontSize(dense, 5.0, 3.7) < 16, "dense slide should shrink");
   assert.equal(model.slides[1].bodyWidthIn, 8.8, "text-only slide uses full width");
   assert.equal(model.slides[0].image!.dataUrl.slice(0, 22), "data:image/png;base64,");
 
+  // No explicit background -> branded gradient, not flat grey.
+  assert.equal(model.bg, "1A1A1A");
+  assert.ok(model.bgCss.startsWith("radial-gradient("), "default bg is a gradient");
+  assert.ok(model.bgCss.includes("#0b0c0e"), "gradient bottoms out near-black");
+
+  // Explicit background_color -> flat fill.
+  const solid = await buildDeckModel({
+    title: "T",
+    slides: [{ heading: "H", bullets: ["x"] }],
+    backgroundColor: "#123456",
+  });
+  assert.equal(solid.bgCss, "#123456");
+
   // The model is stored as jsonb - it must round-trip losslessly.
   assert.deepEqual(JSON.parse(JSON.stringify(model)), model);
 

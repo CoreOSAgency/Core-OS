@@ -93,16 +93,33 @@ export type ContentSlideModel = {
 
 export type DeckModel = {
   title: string;
-  bg: string;
+  bg: string; // solid hex, kept for the (idle) QA mirror
+  bgCss: string; // what the live viewer / PDF actually paints
   accent: string;
   text: string;
   logo: { dataUrl: string; wIn: number; hIn: number } | null;
   slides: ContentSlideModel[];
 };
 
+function rgba(hex: string, a: number): string {
+  const n = parseInt(hex, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+// An explicit background_color wins as a flat fill. Otherwise the deck gets a
+// near-black canvas with a soft glow of the brand accent in one corner - a
+// branded surface instead of flat grey, without decorative stripes or rules
+// (which read as AI-generated).
+function deckBackground(explicitBg: string | null, accent: string): string {
+  if (explicitBg) return `#${explicitBg}`;
+  return `radial-gradient(1100px 640px at 12% -10%, ${rgba(accent, 0.16)}, ${rgba(accent, 0.04)} 38%, #0b0c0e 68%)`;
+}
+
 export async function buildDeckModel(input: DeckModelInput): Promise<DeckModel> {
   const accent = normalizeHex(input.accentColor) ?? DECK_NEUTRAL_ACCENT;
-  const bg = normalizeHex(input.backgroundColor) ?? DECK_BG_DEFAULT;
+  const explicitBg = normalizeHex(input.backgroundColor);
+  const bg = explicitBg ?? DECK_BG_DEFAULT;
+  const bgCss = deckBackground(explicitBg, accent);
   const logoImg = input.logoUrl ? await fetchImageForExport(input.logoUrl) : null;
   const imageBySlide = new Map(
     (input.slideImages ?? []).map((im) => [im.slideIndex, im]),
@@ -123,6 +140,7 @@ export async function buildDeckModel(input: DeckModelInput): Promise<DeckModel> 
   return {
     title: input.title,
     bg,
+    bgCss,
     accent,
     text: DECK_TEXT,
     logo: logoImg
