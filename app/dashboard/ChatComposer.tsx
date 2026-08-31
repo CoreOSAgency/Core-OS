@@ -99,7 +99,12 @@ export default function ChatComposer({
         continue;
       }
       const base64 = await fileToBase64(file);
-      next.push({ fileName: file.name, mimeType: file.type || "application/octet-stream", base64 });
+      next.push({
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        base64,
+        blob: file,
+      });
     }
     if (next.length) setPending((p) => [...p, ...next]);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -124,7 +129,7 @@ export default function ChatComposer({
           const base64 = await fileToBase64(wav);
           setPending((p) => [
             ...p,
-            { fileName: "voice-note.wav", mimeType: "audio/wav", base64, isVoice: true },
+            { fileName: "voice-note.wav", mimeType: "audio/wav", base64, blob: wav, isVoice: true },
           ]);
         } catch {
           setAttachError("Couldn't process that recording.");

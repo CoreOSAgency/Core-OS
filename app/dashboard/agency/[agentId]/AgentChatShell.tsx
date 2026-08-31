@@ -193,12 +193,14 @@ export default function AgentChatShell({
                         : `${chat.activeAgent?.name ?? agent.name} is typing…`}
                     </div>
                   )}
-                  {chat.error && <p className="text-sm text-core-scarlet">{chat.error}</p>}
                 </div>
               )}
             </div>
 
             <div className="mx-auto w-full max-w-3xl">
+              {chat.error && (
+                <p className="mb-2 px-2 text-sm text-core-scarlet">{chat.error}</p>
+              )}
               <ChatComposer
                 agentName={agent.name}
                 input={chat.input}

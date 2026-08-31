@@ -5,7 +5,8 @@
 export type PendingAttachment = {
   fileName: string;
   mimeType: string;
-  base64: string; // no data: prefix
+  base64: string; // no data: prefix - for the optimistic in-chat preview only
+  blob: Blob; // the real bytes, uploaded to Storage on send
   isVoice?: boolean;
 };
 

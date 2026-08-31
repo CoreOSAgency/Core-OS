@@ -301,10 +301,9 @@ export function useAgentChat({
           atts.map(async (a, i) => {
             const safe = a.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
             const storagePath = `${user.id}/${Date.now()}-${i}-${safe}`;
-            const bin = Uint8Array.from(atob(a.base64), (c) => c.charCodeAt(0));
             const { error } = await supabase.storage
               .from("chat-attachments")
-              .upload(storagePath, bin, { contentType: a.mimeType });
+              .upload(storagePath, a.blob, { contentType: a.mimeType, upsert: false });
             if (error) throw error;
             return { storagePath, mimeType: a.mimeType, fileName: a.fileName };
           })
