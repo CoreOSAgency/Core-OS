@@ -157,7 +157,7 @@ export default function NewClientPage() {
             <div key={s} className="flex flex-1 items-center gap-2">
               <div
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
-                  i <= step ? "bg-core-purple text-[#04170d]" : "bg-white/5 text-neutral-500"
+                  i <= step ? "bg-core-purple text-[#111214]" : "bg-white/5 text-neutral-500"
                 }`}
               >
                 {i + 1}
@@ -318,7 +318,7 @@ export default function NewClientPage() {
             <button
               onClick={next}
               disabled={!canNext || creating}
-              className="ml-auto rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-[#04170d] hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:opacity-50"
+              className="ml-auto rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-[#111214] hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {creating
                 ? "Creating…"

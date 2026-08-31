@@ -11,22 +11,22 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
-        // Southern Double-collared Sunbird. Chrome = the iridescent green
-        // mantle seen in shadow; accents = the crimson breast patch, the
-        // teal collar, and the pale pectoral-tuft gold.
-        "core-icon": "#08150f",
-        "core-nav": "#0b1c14",
-        "core-main": "#0a1611",
-        "core-card": "#10251b",
+        // CoreOS brand: warm yellow->orange->red gradient + teal/cyan on a
+        // charcoal base. From the logo palette.
+        "core-icon": "#0c0d0f",
+        "core-nav": "#141519",
+        "core-main": "#111214",
+        "core-card": "#1a1c21",
         // `core-purple` keeps its name to avoid renaming ~90 usages. It is
-        // now the iridescent emerald green (head & back). Primary accent.
-        "core-purple": "#13c56b",
-        "core-green": "#0bda51", // malachite: success / active / connected
-        "core-teal": "#0fb0a8", // collar patch: secondary accent, info, chat
-        "core-scarlet": "#d51a1a", // crimson breast patch: errors / destructive
-        "core-amber": "#f46904", // orange: warnings / onboarding
-        "core-gold": "#e2d78a", // pale pectoral-tuft gold: highlights
-        "core-yellow": "#e2d78a", // alias of core-gold, kept for old usages
+        // the brand orange - primary accent, dark text on fills.
+        "core-purple": "#ff7a1a",
+        "core-amber": "#ffb81c", // marigold - highlights, warnings, onboarding
+        "core-gold": "#ffb81c", // alias of core-amber (kept for old usages)
+        "core-scarlet": "#ff3d1a", // vermilion - errors / destructive / churned
+        "core-teal": "#00bfae", // teal - success / active / connected / chat
+        "core-green": "#00bfae", // alias of core-teal (kept for old usages)
+        "core-cyan": "#00d4d8", // cyan - info / secondary
+        "core-yellow": "#ffb81c", // alias of core-amber (kept for old usages)
       },
     },
   },

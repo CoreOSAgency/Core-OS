@@ -35,7 +35,7 @@ export default function ChatComposer({
             onClick={() => onModeChange(m)}
             className={`rounded-md px-2 py-1 text-[11px] font-medium transition ${
               mode === m
-                ? "bg-core-purple text-[#04170d]"
+                ? "bg-core-purple text-[#111214]"
                 : "text-neutral-400 hover:text-neutral-200"
             }`}
           >
@@ -77,7 +77,7 @@ export default function ChatComposer({
         <button
           type="submit"
           disabled={sending || !input.trim()}
-          className="shrink-0 rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-[#04170d] transition hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
+          className="shrink-0 rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-[#111214] transition hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
         >
           Send
         </button>

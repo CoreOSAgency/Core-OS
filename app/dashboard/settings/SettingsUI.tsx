@@ -38,7 +38,7 @@ export const inputClass =
   "w-full rounded-lg border border-white/10 bg-core-main px-3 py-2 text-sm text-neutral-100 outline-none focus:border-core-purple";
 
 export const primaryButtonClass =
-  "rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-[#04170d] hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:opacity-50";
+  "rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-[#111214] hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:opacity-50";
 
 export const secondaryButtonClass =
   "rounded-lg border border-white/10 px-4 py-2 text-sm text-neutral-300 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50";

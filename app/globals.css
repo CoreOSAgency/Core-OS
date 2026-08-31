@@ -11,30 +11,29 @@ body {
     text-wrap: balance;
   }
 
-  /* The sunbird's pectoral tuft to crimson breast patch: pale gold, orange,
-     crimson. */
+  /* The CoreOS logo gradient: marigold, orange, vermilion. */
   .sunbird-band {
     background-image: linear-gradient(
       90deg,
-      #e2d78a 0%,
-      #f0902a 45%,
-      #d51a1a 100%
+      #ffb81c 0%,
+      #ff7a1a 50%,
+      #ff3d1a 100%
     );
   }
   .sunbird-band-text {
-    background-image: linear-gradient(90deg, #e2d78a, #f0902a 45%, #d51a1a);
+    background-image: linear-gradient(90deg, #ffb81c, #ff7a1a 50%, #ff3d1a);
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
   }
 
-  /* Iridescent green→teal sheen for the nav rail. */
+  /* Faint teal glow at the foot of the nav rail (echoes the logo mark). */
   .iridescent-rail {
     background-image: linear-gradient(
       180deg,
-      #0d2a1c 0%,
-      #0a2230 55%,
-      #0b1c14 100%
+      #141519 0%,
+      #141519 55%,
+      #0c2a2a 100%
     );
   }
 }

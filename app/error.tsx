@@ -39,7 +39,7 @@ export default function GlobalError({
           </button>
           <button
             onClick={() => window.location.reload()}
-            className="rounded-lg bg-core-purple px-4 py-2.5 text-sm font-semibold text-[#04170d] hover:bg-core-purple/80"
+            className="rounded-lg bg-core-purple px-4 py-2.5 text-sm font-semibold text-[#111214] hover:bg-core-purple/80"
           >
             Reload Page
           </button>

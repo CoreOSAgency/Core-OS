@@ -26,7 +26,7 @@ export default function ClientsView({
         <h2 className="text-lg font-semibold text-neutral-100">Clients</h2>
         <Link
           href="/dashboard/clients/new"
-          className="rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-[#04170d] hover:bg-core-purple/80"
+          className="rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-[#111214] hover:bg-core-purple/80"
         >
           + Add client
         </Link>

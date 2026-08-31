@@ -10,7 +10,7 @@ function SubmitButton({ label }: { label: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded-lg bg-core-purple px-4 py-2.5 font-medium text-[#04170d] transition hover:bg-core-purple disabled:cursor-not-allowed disabled:opacity-60"
+      className="w-full rounded-lg bg-core-purple px-4 py-2.5 font-medium text-[#111214] transition hover:bg-core-purple/90 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Please wait…" : label}
     </button>

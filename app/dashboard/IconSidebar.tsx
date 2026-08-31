@@ -174,7 +174,7 @@ export default function IconSidebar({
         <Link
           href="/dashboard"
           title="CoreOS"
-          className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-core-scarlet text-[10px] font-bold tracking-tight text-core-gold shadow-lg ring-1 ring-core-gold/30"
+          className="sunbird-band mb-2 flex h-8 w-8 items-center justify-center rounded-lg text-[10px] font-bold tracking-tight text-[#111214] shadow-lg"
         >
           OSX
         </Link>
