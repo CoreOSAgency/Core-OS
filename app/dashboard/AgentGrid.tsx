@@ -31,7 +31,7 @@ export default function AgentGrid({
           <div className="mb-4 flex items-center gap-2">
             <span className="text-sm">{SECTION_ICON[section.id]}</span>
             <div>
-              <h2 className="text-sm font-semibold tracking-widest text-neutral-400">
+              <h2 className="text-sm font-semibold tracking-widest text-core-gold/80">
                 {section.title}
               </h2>
               <p className="text-xs text-neutral-500">{section.description}</p>
@@ -69,7 +69,7 @@ export default function AgentGrid({
         <div className="mb-4 flex items-center gap-2">
           <span className="text-sm">🧰</span>
           <div>
-            <h2 className="text-sm font-semibold tracking-widest text-neutral-400">TOOLS</h2>
+            <h2 className="text-sm font-semibold tracking-widest text-core-gold/80">TOOLS</h2>
             <p className="text-xs text-neutral-500">Standalone tools alongside the agent roster</p>
           </div>
         </div>

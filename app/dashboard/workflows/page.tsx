@@ -253,7 +253,7 @@ export default function WorkflowsPage() {
         </p>
         {agentSections.map((section) => (
           <div key={section.id} className="mb-4">
-            <p className="px-1 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">
+            <p className="px-1 pb-1 text-[10px] font-semibold tracking-widest text-core-gold/70">
               {section.title}
             </p>
             <ul className="space-y-1">

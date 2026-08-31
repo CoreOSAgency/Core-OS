@@ -11,17 +11,18 @@ body {
     text-wrap: balance;
   }
 
-  /* The sunbird's yellow→orange→red belly band. */
+  /* The sunbird's pectoral tuft to crimson breast patch: pale gold, orange,
+     crimson. */
   .sunbird-band {
     background-image: linear-gradient(
       90deg,
-      #ffd23f 0%,
-      #f46904 52%,
-      #e33127 100%
+      #e2d78a 0%,
+      #f0902a 45%,
+      #d51a1a 100%
     );
   }
   .sunbird-band-text {
-    background-image: linear-gradient(90deg, #ffd23f, #f46904 55%, #e33127);
+    background-image: linear-gradient(90deg, #e2d78a, #f0902a 45%, #d51a1a);
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;

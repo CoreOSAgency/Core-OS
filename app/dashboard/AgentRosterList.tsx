@@ -16,7 +16,7 @@ export default function AgentRosterList({
     <div className="space-y-4">
       {agentSections.map((group) => (
         <div key={group.id}>
-          <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-neutral-600">
+          <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold/70">
             {group.title}
           </p>
           <ul>
