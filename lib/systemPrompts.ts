@@ -1,4 +1,5 @@
 import { agentSections } from "./agents";
+import type { ChatMode } from "./modelRouter";
 
 // ponytail: agents without a hand-written prompt below get a generic one
 // derived from their name/description, so every agent stays wired to Gemini
@@ -225,3 +226,20 @@ Be brief, warm, and orienting. You're the first conversation a new user has - ma
 };
 
 export const systemPrompts: Record<string, string> = { ...defaults, ...overrides };
+
+// Short mode addendum appended to the active agent prompt. `standard` is
+// current behaviour, so it adds nothing.
+const MODE_ADDENDUM: Record<ChatMode, string> = {
+  quick:
+    "\n\n---\nAnswer directly and concisely. Skip caveats and background unless asked. No more than a few sentences unless the question genuinely requires more.",
+  standard: "",
+  deep:
+    "\n\n---\nTreat this as a research task. Use search to check current facts and multiple sources before answering. Cite what you find. Lay out trade-offs and reasoning explicitly rather than just giving a conclusion. It's fine to take longer to be right.",
+};
+
+// Returns null for an unknown agentId (route.ts turns that into a 404).
+export function buildSystemPrompt(agentId: string, mode: ChatMode): string | null {
+  const base = systemPrompts[agentId];
+  if (!base) return null;
+  return base + MODE_ADDENDUM[mode];
+}

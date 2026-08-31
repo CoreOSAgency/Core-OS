@@ -6,11 +6,17 @@ export type Conversation = {
   updated_at: string;
 };
 
+export type GroundingSource = { title: string; url: string };
+
 export type StoredMessage = {
   role: "user" | "model";
   content: string;
   context_saved: boolean;
   is_deliverable: boolean;
+  mode: string;
+  model_used: string | null;
+  thinking_level: string | null;
+  grounding_sources: GroundingSource[];
 };
 
 export async function listConversations(
@@ -50,7 +56,9 @@ export async function getMessages(
 ): Promise<StoredMessage[]> {
   const { data, error } = await supabase
     .from("messages")
-    .select("role, content, context_saved, is_deliverable")
+    .select(
+      "role, content, context_saved, is_deliverable, mode, model_used, thinking_level, grounding_sources"
+    )
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
 
@@ -66,8 +74,14 @@ export async function appendTurn(
   conversationId: string,
   userText: string,
   modelText: string,
-  contextSaved: boolean,
-  isDeliverable: boolean
+  meta: {
+    contextSaved: boolean;
+    isDeliverable: boolean;
+    mode: string;
+    modelUsed: string;
+    thinkingLevel: string;
+    groundingSources: GroundingSource[];
+  }
 ): Promise<void> {
   // Both rows list every column explicitly — a batch insert where rows have
   // different keys sends NULL (not the column default) for the missing
@@ -79,13 +93,21 @@ export async function appendTurn(
       content: userText,
       context_saved: false,
       is_deliverable: false,
+      mode: meta.mode,
+      model_used: null,
+      thinking_level: null,
+      grounding_sources: [],
     },
     {
       conversation_id: conversationId,
       role: "model",
       content: modelText,
-      context_saved: contextSaved,
-      is_deliverable: isDeliverable,
+      context_saved: meta.contextSaved,
+      is_deliverable: meta.isDeliverable,
+      mode: meta.mode,
+      model_used: meta.modelUsed,
+      thinking_level: meta.thinkingLevel,
+      grounding_sources: meta.groundingSources,
     },
   ]);
   if (insertError) throw insertError;

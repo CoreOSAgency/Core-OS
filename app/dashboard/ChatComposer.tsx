@@ -1,20 +1,48 @@
 "use client";
 
+import type { ChatMode } from "@/lib/modelRouter";
+
+const MODE_LABELS: [ChatMode, string][] = [
+  ["quick", "Quick"],
+  ["standard", "Standard"],
+  ["deep", "Deep Research"],
+];
+
 export default function ChatComposer({
   agentName,
   input,
   onInputChange,
   onSubmit,
   sending,
+  mode,
+  onModeChange,
 }: {
   agentName: string;
   input: string;
   onInputChange: (v: string) => void;
   onSubmit: (text: string) => void;
   sending: boolean;
+  mode: ChatMode;
+  onModeChange: (m: ChatMode) => void;
 }) {
   return (
     <div className="border-t border-white/10 p-4">
+      <div className="mb-2 flex w-fit gap-0.5 rounded-lg border border-white/10 p-0.5">
+        {MODE_LABELS.map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onModeChange(m)}
+            className={`rounded-md px-2 py-1 text-[11px] font-medium transition ${
+              mode === m
+                ? "bg-core-purple text-white"
+                : "text-neutral-400 hover:text-neutral-200"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <form
         onSubmit={(e) => {
           e.preventDefault();

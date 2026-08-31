@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { systemPrompts } from "@/lib/systemPrompts";
+import { buildSystemPrompt } from "@/lib/systemPrompts";
+import {
+  extractGroundingSources,
+  getModelConfig,
+  type ChatMode,
+} from "@/lib/modelRouter";
 import { createClient } from "@/lib/supabase/server";
 import {
   extractContextBlock,
@@ -15,13 +20,12 @@ import { appendTurn, createConversation } from "@/lib/conversations";
 
 type ChatTurn = { role: "user" | "model"; text: string };
 
-// ponytail: gemini-2.5-flash (as originally requested) is rejected by this
-// API key's project tier ("no longer available to new users" — verified live
-// against the API on 2026-08-29). gemini-3.6-flash is Google's own suggested
-// replacement and was verified working. Swap the model string here if a
-// different one becomes preferred.
-const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent";
+const MODES: ChatMode[] = ["quick", "standard", "deep"];
+
+// Model IDs, thinking depth, and tool set per mode all live in lib/modelRouter.
+// gemini-2.5-flash was rejected by this key's tier (2026-08-29); the router
+// notes which of the current IDs are actually enabled.
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -31,6 +35,7 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+  const key = apiKey;
 
   const body = await request.json().catch(() => null);
   const agentId: unknown = body?.agentId;
@@ -38,6 +43,8 @@ export async function POST(request: Request) {
   const projectId: unknown = body?.projectId;
   const conversationId: unknown = body?.conversationId;
   const history: ChatTurn[] = Array.isArray(body?.history) ? body.history : [];
+  // Absent/unknown mode falls back to 'standard' so older clients still work.
+  const mode: ChatMode = MODES.includes(body?.mode) ? body.mode : "standard";
 
   if (typeof agentId !== "string" || typeof message !== "string" || !message.trim()) {
     return NextResponse.json(
@@ -52,7 +59,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const baseSystemPrompt = systemPrompts[agentId];
+  const baseSystemPrompt = buildSystemPrompt(agentId, mode);
   if (!baseSystemPrompt) {
     return NextResponse.json(
       { error: `Unknown agentId: ${agentId}` },
@@ -86,26 +93,75 @@ export async function POST(request: Request) {
     { role: "user", parts: [{ text: message }] },
   ];
 
-  const geminiResponse = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents,
-    }),
-  });
+  const config = getModelConfig(mode);
 
-  const data = await geminiResponse.json().catch(() => null);
+  const geminiBody: Record<string, unknown> = {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents,
+    generationConfig: {
+      thinkingConfig: { thinkingLevel: config.thinkingLevel },
+      maxOutputTokens: config.maxOutputTokens,
+    },
+  };
+  if (config.tools.length > 0) {
+    geminiBody.tools = config.tools.map((t) => ({ [t.type]: {} }));
+  }
+  const requestBody = JSON.stringify(geminiBody);
 
-  if (!geminiResponse.ok) {
+  async function callGemini(model: string) {
+    const res = await fetch(
+      `${GEMINI_BASE}/${model}:generateContent?key=${key}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: requestBody,
+      }
+    );
+    const json = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, json };
+  }
+
+  // Try the mode's model; on any failure retry once against the fallback so a
+  // bad/disabled model ID (e.g. Pro not enabled on the key) degrades instead
+  // of 500ing. model_used records which one actually answered.
+  let modelUsed = config.model;
+  let result: Awaited<ReturnType<typeof callGemini>>;
+  try {
+    result = await callGemini(config.model);
+    if (!result.ok) {
+      throw new Error(
+        result.json?.error?.message ?? `Gemini HTTP ${result.status}`
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[chat] ${config.model} failed, falling back to ${config.fallbackModel}`,
+      err
+    );
+    modelUsed = config.fallbackModel;
+    try {
+      result = await callGemini(config.fallbackModel);
+    } catch (err2) {
+      return NextResponse.json(
+        { error: err2 instanceof Error ? err2.message : "Gemini request failed" },
+        { status: 502 }
+      );
+    }
+  }
+
+  const data = result.json;
+
+  if (!result.ok) {
     return NextResponse.json(
       { error: data?.error?.message ?? "Gemini request failed" },
-      { status: geminiResponse.status }
+      { status: result.status || 502 }
     );
   }
 
-  const rawReply: string | undefined =
-    data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  // Grounded replies can arrive split across several parts — join them all.
+  const parts: Array<{ text?: string }> =
+    data?.candidates?.[0]?.content?.parts ?? [];
+  const rawReply = parts.map((p) => p.text ?? "").join("").trim();
 
   if (!rawReply) {
     return NextResponse.json(
@@ -113,6 +169,8 @@ export async function POST(request: Request) {
       { status: 502 }
     );
   }
+
+  const groundingSources = extractGroundingSources(data);
 
   const { text: afterContext, entries } = extractContextBlock(rawReply);
   let contextSaved = false;
@@ -130,19 +188,20 @@ export async function POST(request: Request) {
       ? conversationId
       : (await createConversation(supabase, projectId, agentId)).id;
 
-  await appendTurn(
-    supabase,
-    activeConversationId,
-    message,
-    reply,
+  await appendTurn(supabase, activeConversationId, message, reply, {
     contextSaved,
-    isDeliverable
-  );
+    isDeliverable,
+    mode,
+    modelUsed,
+    thinkingLevel: config.thinkingLevel,
+    groundingSources,
+  });
 
   return NextResponse.json({
     reply,
     contextSaved,
     isDeliverable,
     conversationId: activeConversationId,
+    groundingSources,
   });
 }

@@ -3,3 +3,4 @@
 // other just to reach a string constant.
 export const ACTIVE_PROJECT_KEY = "coreos_active_project_id";
 export const LAST_AGENT_KEY = "coreos_last_agent_id";
+export const CHAT_MODE_KEY = "coreos_chat_mode";

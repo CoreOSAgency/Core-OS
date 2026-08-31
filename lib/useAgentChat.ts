@@ -2,15 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Agent } from "@/lib/agents";
+import type { ChatMode } from "@/lib/modelRouter";
+import { CHAT_MODE_KEY } from "@/lib/localStorageKeys";
 import { extractTableData, parseMarkdownToSlides } from "@/lib/markdownToBlocks";
 import { downloadFileFromResponse } from "@/lib/download";
+
+export type GroundingSource = { title: string; url: string };
 
 export type ChatTurn = {
   role: "user" | "model";
   text: string;
   contextSaved?: boolean;
   isDeliverable?: boolean;
+  groundingSources?: GroundingSource[];
 };
+
+const CHAT_MODES: ChatMode[] = ["quick", "standard", "deep"];
 
 export type ConversationSummary = { id: string; title: string | null; updated_at: string };
 
@@ -49,6 +56,7 @@ export function useAgentChat({
   driveConnected: boolean;
 }) {
   const [messages, setMessages] = useState<ChatTurn[]>([]);
+  const [mode, setModeState] = useState<ChatMode>("standard");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState<ConversationSummary[] | null>(null);
@@ -59,6 +67,28 @@ export function useAgentChat({
   const [downloading, setDownloading] = useState<string | null>(null);
   const [driveLinks, setDriveLinks] = useState<Record<string, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Last-selected mode is a per-browser preference — persists across agents,
+  // projects, and reloads.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CHAT_MODE_KEY);
+      if (saved && (CHAT_MODES as string[]).includes(saved)) {
+        setModeState(saved as ChatMode);
+      }
+    } catch {
+      // per-browser convenience only
+    }
+  }, []);
+
+  function setMode(next: ChatMode) {
+    setModeState(next);
+    try {
+      localStorage.setItem(CHAT_MODE_KEY, next);
+    } catch {
+      // per-browser convenience only
+    }
+  }
 
   // Switching agent or project resumes that agent's most recent conversation
   // for this project, if it has one.
@@ -93,11 +123,18 @@ export function useAgentChat({
     const res = await fetch(`/api/conversations/${id}/messages`);
     const data = await res.json();
     const loaded: ChatTurn[] = (data.messages ?? []).map(
-      (m: { role: "user" | "model"; content: string; context_saved: boolean; is_deliverable: boolean }) => ({
+      (m: {
+        role: "user" | "model";
+        content: string;
+        context_saved: boolean;
+        is_deliverable: boolean;
+        grounding_sources?: GroundingSource[];
+      }) => ({
         role: m.role,
         text: m.content,
         contextSaved: m.context_saved,
         isDeliverable: m.is_deliverable,
+        groundingSources: m.grounding_sources ?? [],
       })
     );
     setMessages(loaded);
@@ -139,6 +176,7 @@ export function useAgentChat({
           projectId,
           conversationId,
           history,
+          mode,
         }),
       });
       const data = await res.json();
@@ -155,6 +193,7 @@ export function useAgentChat({
           text: data.reply,
           contextSaved: data.contextSaved,
           isDeliverable: data.isDeliverable,
+          groundingSources: data.groundingSources ?? [],
         },
       ]);
 
@@ -270,6 +309,8 @@ export function useAgentChat({
 
   return {
     messages,
+    mode,
+    setMode,
     conversationId,
     showHistory,
     setShowHistory,

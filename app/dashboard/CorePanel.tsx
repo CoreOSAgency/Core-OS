@@ -157,7 +157,7 @@ export default function CorePanel({
 
           {chat.sending && (
             <div className="max-w-[85%] rounded-lg bg-core-card px-3 py-2 text-sm text-neutral-400">
-              Core is typing…
+              {chat.mode === "deep" ? "Researching…" : "Core is typing…"}
             </div>
           )}
           {chat.error && <p className="text-sm text-red-400">{chat.error}</p>}
@@ -171,6 +171,8 @@ export default function CorePanel({
           onInputChange={chat.setInput}
           onSubmit={chat.sendMessage}
           sending={chat.sending}
+          mode={chat.mode}
+          onModeChange={chat.setMode}
         />
       )}
     </aside>

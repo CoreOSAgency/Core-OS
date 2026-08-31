@@ -126,6 +126,27 @@ export default function ChatMessage({
           turn.text
         )}
         {turn.contextSaved && <p className="mt-1.5 text-xs text-emerald-400/80">✓ Project memory saved</p>}
+        {turn.role === "model" && turn.groundingSources && turn.groundingSources.length > 0 && (
+          <details className="mt-2 border-t border-neutral-700/60 pt-2">
+            <summary className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-200">
+              Sources ({turn.groundingSources.length})
+            </summary>
+            <ul className="mt-1 space-y-1">
+              {turn.groundingSources.map((s, i) => (
+                <li key={i}>
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-emerald-400 hover:underline"
+                  >
+                    {s.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         {turn.role === "model" && turn.isDeliverable && (
           <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-neutral-700/60 pt-2">
             <button

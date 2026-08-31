@@ -144,7 +144,7 @@ export default function AgentChatShell({
                   ))}
                   {chat.sending && (
                     <div className="rounded-lg bg-core-card px-3 py-2 text-sm text-neutral-400">
-                      {agent.name} is typing…
+                      {chat.mode === "deep" ? "Researching…" : `${agent.name} is typing…`}
                     </div>
                   )}
                   {chat.error && <p className="text-sm text-red-400">{chat.error}</p>}
@@ -159,6 +159,8 @@ export default function AgentChatShell({
                 onInputChange={chat.setInput}
                 onSubmit={chat.sendMessage}
                 sending={chat.sending}
+                mode={chat.mode}
+                onModeChange={chat.setMode}
               />
             </div>
           </>
