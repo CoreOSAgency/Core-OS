@@ -27,6 +27,7 @@ export default async function DeckPage({
     <DeckViewer
       model={deck.model}
       title={deck.title}
+      shareToken={params.shareToken}
       print={searchParams.print === "1"}
     />
   );

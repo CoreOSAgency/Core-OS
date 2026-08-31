@@ -151,10 +151,12 @@ function fitBodies(els: (HTMLUListElement | null)[]) {
 
 export default function DeckViewer({
   model,
+  shareToken,
   print,
 }: {
   model: DeckModel;
   title: string;
+  shareToken: string;
   print: boolean;
 }) {
   const total = model.slides.length + 1; // + title slide
@@ -320,6 +322,14 @@ export default function DeckViewer({
         <button onClick={toggleFullscreen} style={navBtn} title="Present (F)">
           ⛶ Present
         </button>
+        <a
+          href={`/api/decks/${shareToken}/pdf`}
+          download
+          style={{ ...navBtn, textDecoration: "none" }}
+          title="Download as PDF - works as a document post on LinkedIn"
+        >
+          ⬇ Download
+        </a>
       </div>
     </div>
   );
