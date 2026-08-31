@@ -6,6 +6,8 @@ import {
   Background,
   Controls,
   MiniMap,
+  Handle,
+  Position,
   addEdge,
   applyNodeChanges,
   applyEdgeChanges,
@@ -44,8 +46,10 @@ function AgentNode({ data }: NodeProps) {
   const { agent } = data as unknown as AgentNodeData;
   return (
     <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-core-card px-3 py-2 shadow-lg">
+      <Handle type="target" position={Position.Top} className="!h-2 !w-2 !bg-core-purple" />
       <span className="text-lg">{agent.emoji}</span>
       <span className="text-sm font-medium text-neutral-100">{agent.name}</span>
+      <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !bg-core-purple" />
     </div>
   );
 }
