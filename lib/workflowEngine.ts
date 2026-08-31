@@ -175,6 +175,9 @@ async function callAgent(agentId: string, input: string): Promise<string> {
           maxOutputTokens: 4096,
         },
       }),
+      // A hung call shouldn't eat the whole function budget — fail the step
+      // instead so the run records it and stops.
+      signal: AbortSignal.timeout(90_000),
     }
   );
   const json = await res.json().catch(() => null);
