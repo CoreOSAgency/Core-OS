@@ -12,30 +12,88 @@ type IntegrationCard = {
 };
 
 const COMING_SOON: IntegrationCard[] = [
-  { name: "Google Workspace", emoji: "🗂️", badge: "Workspace", description: "Gmail, Calendar, and Docs access." },
-  { name: "Notion", emoji: "📓", badge: "Workspace", description: "Sync project docs and notes." },
-  { name: "Slack", emoji: "💬", badge: "Client / Agency", description: "Post agent activity to a channel." },
-  { name: "Instantly", emoji: "📤", badge: "Client / Agency", description: "Sync cold email campaigns." },
   { name: "Custom Integrations", emoji: "🔌", badge: "Client / Agency", description: "Connect any webhook-based tool." },
   { name: "Meta Ads", emoji: "📢", badge: "Workspace", description: "Pull campaign performance data." },
   { name: "Google Ads", emoji: "🎯", badge: "Workspace", description: "Pull campaign performance data." },
 ];
 
+type Connected = {
+  googleDrive?: boolean;
+  notion?: boolean;
+  slack?: boolean;
+  instantly?: boolean;
+};
+
+// Connect / disconnect card for a standard OAuth provider.
+function OAuthCard({
+  title,
+  description,
+  connectHref,
+  provider,
+  connected,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  connectHref: string;
+  provider: string;
+  connected: boolean | undefined;
+  onChange: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function disconnect() {
+    setBusy(true);
+    try {
+      await fetch(`/api/integrations?provider=${provider}`, { method: "DELETE" });
+      onChange();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <SettingsCard title={title} description={description}>
+      <div className="flex items-center justify-between">
+        {connected === undefined ? (
+          <span className="text-xs text-neutral-500">…</span>
+        ) : (
+          <Badge>{connected ? "Connected" : "Not connected"}</Badge>
+        )}
+        {connected ? (
+          <button onClick={disconnect} disabled={busy} className={secondaryButtonClass}>
+            {busy ? "Disconnecting…" : "Disconnect"}
+          </button>
+        ) : (
+          <a href={connectHref} className={primaryButtonClass}>
+            Connect
+          </a>
+        )}
+      </div>
+    </SettingsCard>
+  );
+}
+
 export default function IntegrationsPage() {
   const { project } = useActiveProject();
-  const [connected, setConnected] = useState<boolean | null>(null);
-  const [disconnecting, setDisconnecting] = useState(false);
+  const [conn, setConn] = useState<Connected>({});
+  const [loaded, setLoaded] = useState(false);
   const [ghlUrl, setGhlUrl] = useState("");
   const [savingGhl, setSavingGhl] = useState(false);
   const [savedGhl, setSavedGhl] = useState(false);
+  const [instantlyKey, setInstantlyKey] = useState("");
+  const [savingInstantly, setSavingInstantly] = useState(false);
 
-  function loadDrive() {
+  function loadConnections() {
     fetch("/api/integrations")
       .then((res) => res.json())
-      .then((data: { googleDrive?: boolean }) => setConnected(!!data.googleDrive));
+      .then((data: Connected) => {
+        setConn(data);
+        setLoaded(true);
+      });
   }
 
-  useEffect(loadDrive, []);
+  useEffect(loadConnections, []);
 
   useEffect(() => {
     if (!project) return;
@@ -45,16 +103,6 @@ export default function IntegrationsPage() {
     // Only refetch when the project actually changes, not on every re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
-
-  async function disconnectDrive() {
-    setDisconnecting(true);
-    try {
-      await fetch("/api/integrations?provider=google_drive", { method: "DELETE" });
-      loadDrive();
-    } finally {
-      setDisconnecting(false);
-    }
-  }
 
   async function saveGhl() {
     if (!project) return;
@@ -72,25 +120,96 @@ export default function IntegrationsPage() {
     }
   }
 
+  async function saveInstantly() {
+    if (!instantlyKey.trim()) return;
+    setSavingInstantly(true);
+    try {
+      const res = await fetch("/api/integrations/instantly", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: instantlyKey.trim() }),
+      });
+      if (res.ok) {
+        setInstantlyKey("");
+        loadConnections();
+      }
+    } finally {
+      setSavingInstantly(false);
+    }
+  }
+
+  async function disconnectInstantly() {
+    await fetch("/api/integrations?provider=instantly", { method: "DELETE" });
+    loadConnections();
+  }
+
   return (
     <SettingsPage title="Integrations" description="Connect the tools agents can read from and act through.">
-      <SettingsCard title="Google Drive" description="Save generated documents straight to Drive.">
+      <OAuthCard
+        title="Google Drive"
+        description="Save generated documents straight to Drive."
+        connectHref="/api/auth/google"
+        provider="google_drive"
+        connected={loaded ? !!conn.googleDrive : undefined}
+        onChange={loadConnections}
+      />
+
+      <SettingsCard
+        title="Google Calendar & Gmail"
+        description="Read-only. Extends the Google connection above — re-consent to add Calendar and Gmail read access."
+      >
         <div className="flex items-center justify-between">
-          {connected === null ? (
-            <span className="text-xs text-neutral-500">…</span>
-          ) : (
-            <Badge>{connected ? "Connected" : "Not connected"}</Badge>
-          )}
-          {connected ? (
-            <button onClick={disconnectDrive} disabled={disconnecting} className={secondaryButtonClass}>
-              {disconnecting ? "Disconnecting…" : "Disconnect"}
-            </button>
-          ) : (
-            <a href="/api/auth/google" className={primaryButtonClass}>
-              Connect
-            </a>
-          )}
+          <span className="text-xs text-neutral-500">
+            {conn.googleDrive
+              ? "Google connected — re-auth to add Calendar + Gmail scopes."
+              : "Connect Google Drive first, then re-auth here for the wider scopes."}
+          </span>
+          <a href="/api/auth/google?scope=expanded" className={primaryButtonClass}>
+            Connect Calendar &amp; Gmail
+          </a>
         </div>
+      </SettingsCard>
+
+      <OAuthCard
+        title="Notion"
+        description="Search the workspace, read a page, export agent output as a new page."
+        connectHref="/api/auth/notion"
+        provider="notion"
+        connected={loaded ? !!conn.notion : undefined}
+        onChange={loadConnections}
+      />
+
+      <OAuthCard
+        title="Slack"
+        description="Post agent activity — like a finished deliverable — to a channel."
+        connectHref="/api/auth/slack"
+        provider="slack"
+        connected={loaded ? !!conn.slack : undefined}
+        onChange={loadConnections}
+      />
+
+      <SettingsCard title="Instantly" description="API key from your Instantly account settings — pulls campaign stats into reporting.">
+        {loaded && conn.instantly ? (
+          <div className="flex items-center justify-between">
+            <Badge>Connected</Badge>
+            <button onClick={disconnectInstantly} className={secondaryButtonClass}>
+              Disconnect
+            </button>
+          </div>
+        ) : (
+          <>
+            <input
+              value={instantlyKey}
+              onChange={(e) => setInstantlyKey(e.target.value)}
+              placeholder="Instantly API key"
+              type="password"
+              className={inputClass}
+            />
+            <button onClick={saveInstantly} disabled={savingInstantly || !instantlyKey.trim()} className={primaryButtonClass}>
+              {savingInstantly ? "Saving…" : "Save"}
+            </button>
+          </>
+        )}
       </SettingsCard>
 
       <SettingsCard title="GoHighLevel" description="Webhook URL for this project — used by Sales Pipeline actions.">

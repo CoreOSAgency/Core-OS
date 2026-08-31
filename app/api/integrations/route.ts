@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isGoogleDriveConnected } from "@/lib/googleDrive";
+import { isNotionConnected } from "@/lib/notion";
+import { isSlackConnected } from "@/lib/slack";
+import { isInstantlyConnected } from "@/lib/instantly";
 
 export async function GET() {
   const supabase = createClient();
@@ -11,8 +14,13 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const googleDrive = await isGoogleDriveConnected(supabase, user.id);
-  return NextResponse.json({ googleDrive });
+  const [googleDrive, notion, slack, instantly] = await Promise.all([
+    isGoogleDriveConnected(supabase, user.id),
+    isNotionConnected(supabase, user.id),
+    isSlackConnected(supabase, user.id),
+    isInstantlyConnected(supabase, user.id),
+  ]);
+  return NextResponse.json({ googleDrive, notion, slack, instantly });
 }
 
 export async function DELETE(request: Request) {

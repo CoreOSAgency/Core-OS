@@ -11,6 +11,8 @@ import AgencySettings from "./settings/organization/page";
 import AgencyMedia from "./AgencyMedia";
 import AgencyOverview from "./AgencyOverview";
 import AgentGrid from "./AgentGrid";
+import ClientsView from "./ClientsView";
+import { DomainsSettingsBody } from "./settings/domains/DomainsSettingsBody";
 import ChatPanel from "./ChatPanel";
 import CorePanel from "./CorePanel";
 import IconSidebar, { type IconSection } from "./IconSidebar";
@@ -226,11 +228,14 @@ export default function DashboardShell({
                         <li key={p.id}>
                           <button
                             onClick={() => setActiveProject(p.id)}
-                            className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-white/5 ${
+                            className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-white/5 ${
                               p.id === activeProjectId ? "text-core-purple" : "text-neutral-200"
                             }`}
                           >
-                            {p.name}
+                            <span className="truncate">{p.name}</span>
+                            <span className="shrink-0 text-[10px] uppercase tracking-wide text-neutral-500">
+                              {p.status}
+                            </span>
                           </button>
                         </li>
                       ))}
@@ -387,14 +392,14 @@ export default function DashboardShell({
               <AgencySettings />
             )
           ) : section === "clients" ? (
-            <div className="rounded-xl border border-dashed border-white/10 bg-core-card/50 p-10 text-center">
-              <div className="mb-2 text-2xl">👥</div>
-              <h3 className="font-medium text-neutral-200">No clients yet</h3>
-              <p className="mx-auto mt-1 max-w-sm text-sm text-neutral-500">
-                Client records aren&apos;t built yet — for now, each CoreOS project represents one client
-                or agency you&apos;re operating.
-              </p>
-            </div>
+            <ClientsView
+              projects={projects}
+              activeProjectId={activeProjectId}
+              onOpen={(id) => {
+                setActiveProject(id);
+                setSection("dashboard");
+              }}
+            />
           ) : section === "files" ? (
             <div className="rounded-xl border border-dashed border-white/10 bg-core-card/50 p-10 text-center">
               <div className="mb-2 text-2xl">📁</div>
@@ -405,12 +410,8 @@ export default function DashboardShell({
               </p>
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-white/10 bg-core-card/50 p-10 text-center">
-              <div className="mb-2 text-2xl">🌐</div>
-              <h3 className="font-medium text-neutral-200">Domain management isn&apos;t built yet</h3>
-              <p className="mx-auto mt-1 max-w-sm text-sm text-neutral-500">
-                Connect and manage client domains from here once this is built.
-              </p>
+            <div className="mx-auto max-w-3xl">
+              <DomainsSettingsBody />
             </div>
           )}
         </div>

@@ -53,12 +53,11 @@ export async function listProjects(
 export async function createProject(
   supabase: SupabaseClient,
   userId: string,
-  name: string,
-  description?: string
+  fields: { name: string } & Omit<ProjectUpdate, "name">
 ): Promise<Project> {
   const { data, error } = await supabase
     .from("projects")
-    .insert({ user_id: userId, name, description: description ?? null })
+    .insert({ user_id: userId, ...fields })
     .select(PROJECT_COLUMNS)
     .single();
 

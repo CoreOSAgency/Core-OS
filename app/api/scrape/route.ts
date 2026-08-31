@@ -50,9 +50,10 @@ export async function POST(request: Request) {
   if (typeof rawUrl !== "string" || !rawUrl.trim()) {
     return NextResponse.json({ error: "url is required" }, { status: 400 });
   }
-  if (typeof projectId !== "string" || !projectId) {
-    return NextResponse.json({ error: "projectId is required" }, { status: 400 });
-  }
+  // projectId is optional: with it, the extracted fields are saved to that
+  // project's context; without it (the onboarding wizard's brand step, before
+  // the project exists) the fields are just returned for the user to confirm.
+  const persist = typeof projectId === "string" && !!projectId;
 
   let target: URL;
   try {
@@ -113,7 +114,9 @@ export async function POST(request: Request) {
     website_url: base,
   };
 
-  await saveProjectContext(supabase, projectId, extracted);
+  if (persist) {
+    await saveProjectContext(supabase, projectId as string, extracted);
+  }
 
   return NextResponse.json({ extracted });
 }

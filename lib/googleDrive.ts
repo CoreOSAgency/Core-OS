@@ -5,13 +5,24 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI!;
 
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
+// Drive + read-only Calendar and Gmail. Google merges granted scopes across
+// consents, so re-consenting with this set keeps Drive working and adds the
+// other two. Existing connected users must re-auth once to pick these up.
+const EXPANDED_SCOPE = [
+  SCOPE,
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "https://www.googleapis.com/auth/gmail.readonly",
+].join(" ");
 
-export function getGoogleAuthUrl(state: string): string {
+export function getGoogleAuthUrl(
+  state: string,
+  opts?: { expanded?: boolean }
+): string {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
     response_type: "code",
-    scope: SCOPE,
+    scope: opts?.expanded ? EXPANDED_SCOPE : SCOPE,
     access_type: "offline",
     prompt: "consent",
     state,

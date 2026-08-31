@@ -6,8 +6,10 @@ import { signOut } from "../../logout/actions";
 
 const WORKSPACE_ITEMS = [
   { href: "/dashboard/settings/organization", label: "Organization" },
-  { href: "/dashboard/settings/billing", label: "Billing & Usage" },
+  { href: "/dashboard/settings/billing", label: "Billing & Retainers" },
+  { href: "/dashboard/settings/reports", label: "Reports" },
   { href: "/dashboard/settings/integrations", label: "Integrations" },
+  { href: "/dashboard/settings/domains", label: "Domains" },
   { href: "/dashboard/settings/team", label: "Team" },
   { href: "/dashboard/settings/api-access", label: "API Access" },
 ];
