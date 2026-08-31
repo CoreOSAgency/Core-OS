@@ -10,6 +10,23 @@
 const CONTEXT_BLOCK_PATTERN = /<<<CONTEXT>>>([\s\S]*?)<<<END>>>/;
 const DELIVERABLE_PATTERN = /<<<DELIVERABLE>>>/;
 const SUGGEST_AGENT_PATTERN = /<<<SUGGEST_AGENT>>>(\w+)<<<END>>>/;
+const SLIDE_IMAGE_PATTERN = /<<<SLIDE_IMAGE:(\d+)>>>([\s\S]*?)<<<END>>>/g;
+
+// Pulls per-slide image requests out of a deck reply and strips the markers
+// from the visible text. slideIndex is 1-based.
+export function extractSlideImagePrompts(reply: string): {
+  text: string;
+  images: { slideIndex: number; prompt: string }[];
+} {
+  const images: { slideIndex: number; prompt: string }[] = [];
+  const text = reply
+    .replace(SLIDE_IMAGE_PATTERN, (_m, n, prompt) => {
+      images.push({ slideIndex: Number(n), prompt: String(prompt).trim() });
+      return "";
+    })
+    .trim();
+  return { text, images };
+}
 
 export function extractContextBlock(reply: string): {
   text: string;
@@ -73,7 +90,7 @@ When in doubt, leave it off. A great, thorough, well-formatted answer to a quest
 
 4. Spreadsheet requests. If the user explicitly asks to "export as spreadsheet" or "create a spreadsheet" (or clearly asks for a list/data export), format your ENTIRE reply as a single clean markdown table with clear column headers - no prose before or after it, just the table - and flag it as a deliverable per rule 3.
 
-5. Presentation requests. If the user asks for a presentation, pitch deck, or slides, structure your reply as a series of "## " headings - one per slide - each followed by 3-6 short bullet points, no long paragraphs - and flag it as a deliverable per rule 3. Two hard rules on the slide text itself: (a) never put "Slide 1:", "Slide 2:" etc. inside a heading - the deck already shows slide order, so write only the real title; (b) never write art direction as a bullet - lines like "Visual Artwork: ...", "Brand Colors: ...", "Logo & Header: ..." are instructions to a designer, nothing renders them, so they end up as literal wrong text on the slide. Write only the words that should actually appear on the slide.
+5. Presentation requests. If the user asks for a presentation, pitch deck, or slides, structure your reply as a series of "## " headings - one per slide - each followed by 3-6 short bullet points, no long paragraphs - and flag it as a deliverable per rule 3. Two hard rules on the slide text itself: (a) never put "Slide 1:", "Slide 2:" etc. inside a heading - the deck already shows slide order, so write only the real title; (b) never write art direction as a bullet - lines like "Visual Artwork: ...", "Brand Colors: ...", "Logo & Header: ..." are instructions to a designer, nothing renders them, so they end up as literal wrong text on the slide. Write only the words that should actually appear on the slide. (c) If a slide would genuinely be stronger with a custom illustration, emit a marker on its own line right after that slide's bullets, exactly: <<<SLIDE_IMAGE:N>>> then a concrete description of what the image should show then <<<END>>> - where N is the 1-based slide number. The system generates and places the image. Use it sparingly, only where a visual actually adds something, and describe the picture, not text or a chart of numbers.
 
 6. Suggesting a handoff. If this request would genuinely be better handled by a specific specialist on the roster and you haven't already suggested it in this conversation, you may end your reply with <<<SUGGEST_AGENT>>>agent_id<<<END>>> on its own line, after everything else. Still give your own best answer first - this is additive, never a substitute for answering. Only suggest once per topic, don't repeat it every turn if the user doesn't act on it.
 

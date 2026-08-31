@@ -31,6 +31,7 @@ export type ChatTurn = {
   agentName?: string;
   suggestedAgentId?: string | null;
   attachments?: ChatAttachment[];
+  slideImagePrompts?: { slideIndex: number; prompt: string }[];
 };
 
 const CHAT_MODES: ChatMode[] = ["quick", "standard", "deep"];
@@ -369,6 +370,7 @@ export function useAgentChat({
           agentId: routeTo.id,
           agentName: routeTo.name,
           suggestedAgentId: data.suggestedAgentId ?? null,
+          slideImagePrompts: data.slideImagePrompts ?? [],
         },
       ]);
 
@@ -384,7 +386,8 @@ export function useAgentChat({
   }
 
   async function downloadDocument(index: number, text: string, type: "pdf" | "docx") {
-    if (!agent) return;
+    const who = agent ?? activeAgent;
+    if (!who) return;
     const key = `${index}-${type}`;
     setDownloading(key);
     try {
@@ -393,7 +396,7 @@ export function useAgentChat({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
-          title: deriveTitle(text, agent.name),
+          title: deriveTitle(text, who.name),
           content: text,
           projectId,
         }),
@@ -408,14 +411,15 @@ export function useAgentChat({
   }
 
   async function downloadSpreadsheet(index: number, data: Record<string, string>[]) {
-    if (!agent) return;
+    const who = agent ?? activeAgent;
+    if (!who) return;
     const key = `${index}-xlsx`;
     setDownloading(key);
     try {
       const res = await fetch("/api/generate/spreadsheet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: `${agent.name} export`, data }),
+        body: JSON.stringify({ title: `${who.name} export`, data }),
       });
       if (!res.ok) throw new Error("Download failed");
       await downloadFileFromResponse(res, "spreadsheet.xlsx");
@@ -427,7 +431,8 @@ export function useAgentChat({
   }
 
   async function downloadPresentation(index: number, text: string) {
-    if (!agent) return;
+    const who = agent ?? activeAgent;
+    if (!who) return;
     const key = `${index}-pptx`;
     setDownloading(key);
     try {
@@ -435,13 +440,20 @@ export function useAgentChat({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: deriveTitle(text, agent.name),
+          title: deriveTitle(text, who.name),
           slides: parseMarkdownToSlides(text),
+          slideImagePrompts: messages[index]?.slideImagePrompts ?? [],
           projectId,
         }),
       });
       if (!res.ok) throw new Error("Download failed");
       await downloadFileFromResponse(res, "presentation.pptx");
+      const failed = Number(res.headers.get("X-Image-Errors") || 0);
+      if (failed > 0) {
+        setError(
+          `Deck downloaded, but ${failed} slide image${failed > 1 ? "s" : ""} couldn't be generated (Gemini image billing may not be enabled). Those slides are text-only.`
+        );
+      }
     } catch {
       setError("Couldn't generate that presentation — try again.");
     } finally {
@@ -450,20 +462,24 @@ export function useAgentChat({
   }
 
   async function saveToDrive(index: number, type: DriveFileType, text: string) {
-    if (!agent) return;
+    const who = agent ?? activeAgent;
+    if (!who) return;
     const key = `${index}-${type}-drive`;
     setDownloading(key);
     try {
       const body: Record<string, unknown> = {
         type,
-        title: deriveTitle(text, agent.name),
+        title: deriveTitle(text, who.name),
         projectName,
-        agentName: agent.name,
+        agentName: who.name,
         projectId,
       };
       if (type === "pdf" || type === "docx") body.content = text;
       if (type === "xlsx") body.data = extractTableData(text);
-      if (type === "pptx") body.slides = parseMarkdownToSlides(text);
+      if (type === "pptx") {
+        body.slides = parseMarkdownToSlides(text);
+        body.slideImagePrompts = messages[index]?.slideImagePrompts ?? [];
+      }
 
       const res = await fetch("/api/generate/drive", {
         method: "POST",

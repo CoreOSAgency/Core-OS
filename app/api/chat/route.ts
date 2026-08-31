@@ -11,6 +11,7 @@ import {
   extractContextBlock,
   extractDeliverableFlag,
   extractHandoffSuggestion,
+  extractSlideImagePrompts,
   SHARED_AGENT_BEHAVIOR,
 } from "@/lib/agencyContext";
 import {
@@ -226,12 +227,17 @@ export async function POST(request: Request) {
 
   // A handoff suggestion only counts if it names a real agent that isn't the
   // one who just answered.
-  const { text: reply, suggestedAgentId: rawSuggestion } =
+  const { text: afterHandoff, suggestedAgentId: rawSuggestion } =
     extractHandoffSuggestion(afterDeliverable);
   const suggestedAgentId =
     rawSuggestion && rawSuggestion !== agentId && findAgent(rawSuggestion)
       ? rawSuggestion
       : null;
+
+  // Per-slide image requests for a deck - stripped from the visible text,
+  // handed to the presentation generator when the user downloads.
+  const { text: reply, images: slideImagePrompts } =
+    extractSlideImagePrompts(afterHandoff);
 
   // Persist the turn. A conversation is created on first message in a
   // fresh chat; the client tracks the id from here for the rest of it.
@@ -262,5 +268,6 @@ export async function POST(request: Request) {
     conversationId: activeConversationId,
     groundingSources,
     suggestedAgentId,
+    slideImagePrompts,
   });
 }

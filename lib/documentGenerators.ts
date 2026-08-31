@@ -30,9 +30,17 @@ export type DocumentInput = {
   agentName?: string;
   logoUrl?: string;
   accentColor?: string;
+  backgroundColor?: string;
 };
 
 const NEUTRAL_ACCENT_HEX = "6B7280"; // slate gray - the brand-free default
+
+// Perceived brightness 0-1. A dark client background flips body text light
+// so the doc stays readable.
+function luminance(hex: string): number {
+  const n = parseInt(hex, 16);
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+}
 
 // pdf-lib's standard fonts only encode WinAnsi (~Latin-1 + a few extras) —
 // they throw on anything outside that (emoji, ⚠, arrows, etc.), which
@@ -47,9 +55,6 @@ function sanitizeForPdf(text: string): string {
 function cleanPdfText(text: string): string {
   return sanitizeForPdf(stripInlineMarkdown(text));
 }
-
-const INK = rgb(0.1, 0.1, 0.1);
-const MUTED = rgb(0.45, 0.45, 0.45);
 
 function hexToRgb(hex: string) {
   const n = parseInt(hex, 16);
@@ -119,12 +124,19 @@ export async function generatePdf({
   content,
   logoUrl,
   accentColor,
+  backgroundColor,
 }: DocumentInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const accentHex = normalizeHex(accentColor) ?? NEUTRAL_ACCENT_HEX;
   const ACCENT = hexToRgb(accentHex);
+
+  const bgHex = normalizeHex(backgroundColor);
+  const darkBg = !!bgHex && luminance(bgHex) < 0.5;
+  const BG = bgHex ? hexToRgb(bgHex) : null;
+  const INK = darkBg ? rgb(0.96, 0.96, 0.96) : rgb(0.1, 0.1, 0.1);
+  const MUTED = darkBg ? rgb(0.68, 0.68, 0.68) : rgb(0.45, 0.45, 0.45);
 
   const logo = logoUrl ? await fetchImageForExport(logoUrl) : null;
   const logoImg = logo
@@ -133,12 +145,18 @@ export async function generatePdf({
       : await doc.embedJpg(logo.bytes).catch(() => null)
     : null;
 
+  function paintBg() {
+    if (BG) page.drawRectangle({ x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT, color: BG });
+  }
+
   let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   let y = PAGE_HEIGHT - MARGIN;
+  paintBg();
 
   function newPage() {
     page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     y = PAGE_HEIGHT - MARGIN;
+    paintBg();
   }
 
   function ensureSpace(needed: number) {
@@ -266,16 +284,20 @@ export async function generateDocx({
   content,
   logoUrl,
   accentColor,
+  backgroundColor,
 }: DocumentInput): Promise<Buffer> {
   const blocks = parseMarkdownToBlocks(content);
   const accentHex = normalizeHex(accentColor) ?? NEUTRAL_ACCENT_HEX;
+  const bgHex = normalizeHex(backgroundColor);
+  const darkBg = !!bgHex && luminance(bgHex) < 0.5;
+  const titleColor = darkBg ? "F5F5F5" : "111111";
   const logo = logoUrl ? await fetchImageForExport(logoUrl) : null;
   const children: (Paragraph | Table)[] = [];
 
   children.push(
     new Paragraph({
       heading: HeadingLevel.TITLE,
-      children: [new TextRun({ text: title, color: "111111" })],
+      children: [new TextRun({ text: title, color: titleColor })],
       border: {
         bottom: { style: BorderStyle.SINGLE, size: 6, color: accentHex, space: 8 },
       },
@@ -356,6 +378,10 @@ export async function generateDocx({
 
   const doc = new Document({
     title,
+    background: bgHex ? { color: bgHex } : undefined,
+    styles: darkBg
+      ? { default: { document: { run: { color: "F5F5F5" } } } }
+      : undefined,
     sections: [
       {
         headers: { default: docxHeader(logo) },

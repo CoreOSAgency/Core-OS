@@ -131,7 +131,7 @@ export async function deleteProjectContextKey(
 export async function getBrandKit(
   supabase: SupabaseClient,
   projectId: string
-): Promise<{ logoUrl?: string; accentColor?: string }> {
+): Promise<{ logoUrl?: string; accentColor?: string; backgroundColor?: string }> {
   const ctx = await getProjectContext(supabase, projectId);
   const accentColor =
     ctx.primary_color ||
@@ -141,6 +141,8 @@ export async function getBrandKit(
   return {
     logoUrl: ctx.logo_url || undefined,
     accentColor: accentColor || undefined,
+    // Explicit key only - never guessed from brand_colours positionally.
+    backgroundColor: ctx.background_color || undefined,
   };
 }
 
