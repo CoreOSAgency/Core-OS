@@ -13,6 +13,39 @@ const FONT = "Arial";
 // A per-slide generated image, keyed to the slide by 1-indexed position.
 export type SlideImage = { slideIndex: number; base64: string; mime: string };
 
+const BODY_FONT_STEPS = [16, 14, 12] as const;
+
+// Rough characters-per-line x line-count estimate against the text box, so a
+// dense slide gets its body font stepped down before it ships instead of
+// spilling past the box edge. Deliberately approximate (Arial ~0.5em average
+// advance, 1.2 line height) - it only needs to catch the bad cases, not lay
+// out pixels. Returns the largest step that fits, or the smallest step if
+// nothing does.
+// ponytail: heuristic fit check; a real headless render (Phase 12 step 2)
+// replaces this if the estimate proves too loose in practice.
+export function fitBodyFontSize(
+  bullets: string[],
+  boxWidthInches: number,
+  boxHeightInches: number,
+): number {
+  if (bullets.length === 0) return BODY_FONT_STEPS[0];
+  const widthPt = boxWidthInches * 72;
+  const boxHeightPt = boxHeightInches * 72;
+  const paraSpaceAfterPt = 10; // matches the addText call below
+
+  for (const size of BODY_FONT_STEPS) {
+    const charsPerLine = Math.max(1, Math.floor(widthPt / (size * 0.5)));
+    const lineHeightPt = size * 1.2;
+    let usedPt = 0;
+    for (const text of bullets) {
+      const lines = Math.max(1, Math.ceil((text.length + 2) / charsPerLine));
+      usedPt += lines * lineHeightPt + paraSpaceAfterPt;
+    }
+    if (usedPt <= boxHeightPt) return size;
+  }
+  return BODY_FONT_STEPS[BODY_FONT_STEPS.length - 1];
+}
+
 export type PresentationInput = {
   title: string;
   slides: Slide[];
@@ -70,7 +103,9 @@ export async function generatePptx({
         slide.bullets.map((text) => ({ text, options: { bullet: true, breakLine: true } })),
         {
           x: 0.6, y: 1.5, w: textW, h: 3.7,
-          color: TEXT, fontFace: FONT, fontSize: 16, valign: "top", paraSpaceAfter: 10,
+          color: TEXT, fontFace: FONT,
+          fontSize: fitBodyFontSize(slide.bullets, textW, 3.7),
+          valign: "top", paraSpaceAfter: 10,
         }
       );
     }
