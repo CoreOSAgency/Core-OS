@@ -43,7 +43,7 @@ export function renderMirrorHtml(model: DeckModel): string {
     sections.push(`
     <section data-slide="${i}" style="width:${W}px;height:${H}px;position:relative;overflow:hidden;background:#${model.bg};">
       <div style="${box(BOX.heading)}color:#${model.accent};font-size:${BOX.heading.pt}px;font-weight:700;line-height:1.1;">${esc(slide.heading)}</div>
-      <ul style="position:absolute;left:${px(BOX.body.x)}px;top:${px(BOX.body.y)}px;width:${px(slide.bodyWidthIn)}px;height:${px(BOX.body.h)}px;margin:0;padding-left:22px;color:#${model.text};font-size:${slide.bodyFontPt}px;line-height:1.2;list-style:disc;">${bullets}</ul>
+      <ul style="position:absolute;left:${px(BOX.body.x)}px;top:${px(BOX.body.y)}px;width:${px(slide.bodyWidthIn)}px;height:${px(BOX.body.h)}px;margin:0;padding-left:22px;color:#${model.text};font-size:${slide.bodyFontPt}px;line-height:1.2;list-style:disc;overflow:visible;outline:1px dashed rgba(255,255,255,0.4);">${bullets}</ul>
       ${
         slide.image
           ? `<img src="${slide.image.dataUrl}" style="position:absolute;left:${px(BOX.image.x)}px;top:${px(BOX.image.y)}px;width:${px(BOX.image.w * slide.image.scale)}px;height:${px(BOX.image.h * slide.image.scale)}px;object-fit:contain;" />`
