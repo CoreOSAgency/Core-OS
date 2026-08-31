@@ -4,6 +4,7 @@
 // and ships the deck anyway (fail-open, same as slide-image generation).
 
 import { renderMirrorHtml } from "./deckMirror";
+import { launchHeadlessBrowser } from "./headlessChrome";
 import type { DeckModel, QaIssue } from "./deckModel";
 
 const QA_MODEL = "gemini-3.6-flash";
@@ -21,23 +22,11 @@ const QA_SYSTEM =
 
 // Screenshot each CONTENT slide (the title slide is excluded from QA). Returns
 // base64 PNGs indexed 0..n-1, i.e. shot[j] is slide j+1.
+// ponytail: kept but no longer wired up - Phase 13's live viewer fits text
+// against real measured DOM, which is what this path mostly existed to check.
 export async function screenshotContentSlides(model: DeckModel): Promise<string[]> {
-  const html = renderMirrorHtml(model);
-  const chromiumMod = await import("@sparticuz/chromium");
-  const chromium = (chromiumMod.default ?? chromiumMod) as {
-    args: string[];
-    executablePath: () => Promise<string>;
-    setGraphicsMode?: boolean;
-  };
-  const puppeteer = await import("puppeteer-core");
-
-  if (typeof chromium.setGraphicsMode !== "undefined") chromium.setGraphicsMode = false;
-
-  const browser = await puppeteer.launch({
-    args: chromium.args,
-    executablePath: await chromium.executablePath(),
-    headless: true,
-  });
+  const html = renderMirrorHtml(model, { qaMarks: true });
+  const browser = await launchHeadlessBrowser();
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1000, height: 570, deviceScaleFactor: 1 });

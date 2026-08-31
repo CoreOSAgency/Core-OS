@@ -2,18 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getBrandKit } from "@/lib/projects";
 import { normalizeHex } from "@/lib/imageForExport";
-import { renderPptxFromModel } from "@/lib/presentationGenerator";
-import { buildDeckModel, applyQaFixes, type SlideImage, type QaIssue } from "@/lib/deckModel";
-import {
-  screenshotContentSlides,
-  reviewSlideShots,
-  rawReviewSlideShots,
-  qaNotesSentence,
-} from "@/lib/deckQa";
-import { slugifyFilename } from "@/lib/documentGenerators";
+import { buildDeckModel, type SlideImage } from "@/lib/deckModel";
+import { createDeck } from "@/lib/decks";
 
-// Headless Chrome (QA path) needs the Node runtime and headroom for a render
-// pass plus one retry.
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -61,12 +52,21 @@ async function generateSlideImage(
   }
 }
 
+// Builds a deck, persists it, and returns a shareable link. The deck renders
+// as a live HTML page (app/decks/[shareToken]); there is no .pptx anymore.
 export async function POST(request: Request) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => null);
   const title: unknown = body?.title;
   const slides: unknown = body?.slides;
   const projectId: unknown = body?.projectId;
-  const qaRequested: boolean = body?.qa === true;
   const imagePrompts: { slideIndex: number; prompt: string }[] = Array.isArray(
     body?.slideImagePrompts
   )
@@ -87,14 +87,13 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-
-  let brand: { logoUrl?: string; accentColor?: string; backgroundColor?: string } = {};
-  if (typeof projectId === "string" && projectId) {
-    brand = await getBrandKit(createClient(), projectId);
+  if (typeof projectId !== "string" || !projectId) {
+    return NextResponse.json({ error: "projectId is required" }, { status: 400 });
   }
 
+  const brand = await getBrandKit(supabase, projectId);
+
   // Generate one image per marker. Failures degrade that slide to text-only.
-  let imageErrors = 0;
   const slideImages: SlideImage[] = [];
   const key = process.env.GEMINI_API_KEY;
   if (key && imagePrompts.length > 0) {
@@ -102,65 +101,18 @@ export async function POST(request: Request) {
     for (const { slideIndex, prompt } of imagePrompts) {
       const img = await generateSlideImage(prompt, accentHex, key);
       if (img) slideImages.push({ slideIndex, base64: img.base64, mime: img.mime });
-      else imageErrors++;
     }
   }
 
-  let model = await buildDeckModel({ title, slides, slideImages, ...brand });
+  const model = await buildDeckModel({ title, slides, slideImages, ...brand });
 
-  // ponytail: temporary QA introspection - remove once the vision pass is dialed in.
-  if (body?.debugQa === true && key) {
-    try {
-      const shots = await screenshotContentSlides(model);
-      const raw = await rawReviewSlideShots(shots, key);
-      return NextResponse.json({
-        slideCount: model.slides.length,
-        shotSizes: shots.map((s) => s.length),
-        bodyFontPts: model.slides.map((s) => s.bodyFontPt),
-        firstShot: shots[0]?.slice(0, 120) ?? null,
-        rawQaResponse: raw,
-      });
-    } catch (e) {
-      return NextResponse.json({ error: String(e) }, { status: 500 });
-    }
+  try {
+    const { shareToken } = await createDeck(supabase, projectId, title, model);
+    return NextResponse.json({ shareToken, url: `/decks/${shareToken}` });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Couldn't save the deck" },
+      { status: 500 }
+    );
   }
-
-  // Optional visual QA: screenshot an HTML mirror of the same model, let a
-  // vision model flag overflow/overlap/contrast, apply ONE deterministic fix
-  // and re-check ONCE, then ship whatever we have with a note.
-  let qaRan = false;
-  let qaIssues: QaIssue[] = [];
-  if (qaRequested && key) {
-    try {
-      let shots = await screenshotContentSlides(model);
-      qaIssues = await reviewSlideShots(shots, key);
-      if (qaIssues.length > 0) {
-        const fixed = applyQaFixes(model, qaIssues);
-        if (fixed.changed) {
-          model = fixed.model;
-          shots = await screenshotContentSlides(model);
-          qaIssues = await reviewSlideShots(shots, key);
-        }
-      }
-      qaRan = true;
-    } catch {
-      // Fail open - ship the deck without QA rather than not at all.
-      qaRan = false;
-      qaIssues = [];
-    }
-  }
-
-  const buffer = await renderPptxFromModel(model);
-  const filename = slugifyFilename(title);
-
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type":
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "Content-Disposition": `attachment; filename="${filename}.pptx"`,
-      "X-Image-Errors": String(imageErrors),
-      "X-QA-Ran": qaRan ? "1" : "0",
-      "X-QA-Notes": encodeURIComponent(qaRan ? qaNotesSentence(qaIssues) : ""),
-    },
-  });
 }

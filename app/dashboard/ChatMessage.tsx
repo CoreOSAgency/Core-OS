@@ -116,9 +116,11 @@ export default function ChatMessage({
   driveConnected,
   downloading,
   driveLinks,
+  deckTokens,
   onDownloadDocument,
   onDownloadSpreadsheet,
-  onDownloadPresentation,
+  onOpenDeck,
+  onDownloadDeckPdf,
   onSaveToDrive,
 }: {
   turn: ChatTurn;
@@ -130,10 +132,12 @@ export default function ChatMessage({
   driveConnected: boolean;
   downloading: string | null;
   driveLinks: Record<string, string>;
+  deckTokens: Record<number, string>;
   onDownloadDocument: (index: number, text: string, type: "pdf" | "docx") => void;
   onDownloadSpreadsheet: (index: number, data: Record<string, string>[]) => void;
-  onDownloadPresentation: (index: number, text: string, qa?: boolean) => void;
-  onSaveToDrive: (index: number, type: "pdf" | "docx" | "xlsx" | "pptx", text: string) => void;
+  onOpenDeck: (index: number, text: string) => void;
+  onDownloadDeckPdf: (index: number) => void;
+  onSaveToDrive: (index: number, type: "pdf" | "docx" | "xlsx", text: string) => void;
 }) {
   const isUser = turn.role === "user";
   const [handoffDismissed, setHandoffDismissed] = useState(false);
@@ -269,26 +273,24 @@ export default function ChatMessage({
             {hasSlideStructure(turn.text) && (
               <>
                 <button
-                  onClick={() => onDownloadPresentation(index, turn.text)}
-                  disabled={downloading === `${index}-pptx`}
+                  onClick={() => onOpenDeck(index, turn.text)}
+                  disabled={downloading === `${index}-deck`}
                   className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
                 >
-                  {downloading === `${index}-pptx` ? "Generating…" : "⬇ Download as Presentation"}
+                  {downloading === `${index}-deck`
+                    ? "Building…"
+                    : deckTokens[index]
+                      ? "↗ View deck"
+                      : "▶ View deck"}
                 </button>
-                <button
-                  onClick={() => onDownloadPresentation(index, turn.text, true)}
-                  disabled={downloading === `${index}-pptx-qa`}
-                  title="Renders each slide and runs a visual check for text overflow and overlap before downloading. Slower: adds a render pass and an AI vision call."
-                  className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
-                >
-                  {downloading === `${index}-pptx-qa` ? "Checking…" : "⬇ QA check + download"}
-                </button>
-                {driveConnected && (
-                  <DriveButton
-                    downloading={downloading === `${index}-pptx-drive`}
-                    link={driveLinks[`${index}-pptx-drive`]}
-                    onClick={() => onSaveToDrive(index, "pptx", turn.text)}
-                  />
+                {deckTokens[index] && (
+                  <button
+                    onClick={() => onDownloadDeckPdf(index)}
+                    disabled={downloading === `${index}-deck-pdf`}
+                    className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                  >
+                    {downloading === `${index}-deck-pdf` ? "Exporting…" : "⬇ Download as PDF"}
+                  </button>
                 )}
               </>
             )}

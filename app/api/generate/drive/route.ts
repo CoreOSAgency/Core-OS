@@ -3,10 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getValidAccessToken, uploadToDrive } from "@/lib/googleDrive";
 import { generateDocx, generatePdf } from "@/lib/documentGenerators";
 import { generateXlsx } from "@/lib/spreadsheetGenerator";
-import { generatePptx } from "@/lib/presentationGenerator";
 import { getBrandKit, getProjectContext } from "@/lib/projects";
 
-type FileType = "pdf" | "docx" | "xlsx" | "pptx";
+// Decks are shareable links now (Phase 13), not files - no pptx here.
+type FileType = "pdf" | "docx" | "xlsx";
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -30,9 +30,9 @@ export async function POST(request: Request) {
   const title: unknown = body?.title;
   const projectId: unknown = body?.projectId;
 
-  if (type !== "pdf" && type !== "docx" && type !== "xlsx" && type !== "pptx") {
+  if (type !== "pdf" && type !== "docx" && type !== "xlsx") {
     return NextResponse.json(
-      { error: "type must be pdf, docx, xlsx, or pptx" },
+      { error: "type must be pdf, docx, or xlsx" },
       { status: 400 }
     );
   }
@@ -79,7 +79,6 @@ type DriveRequestBody = {
   title: string;
   content?: string;
   data?: Record<string, unknown>[];
-  slides?: { heading: string; bullets: string[] }[];
   projectName?: string;
   agentName?: string;
 };
@@ -94,15 +93,9 @@ async function generateBytes(
 
   if (type === "pdf") return generatePdf({ ...shared, content: b.content ?? "" });
   if (type === "docx") return new Uint8Array(await generateDocx({ ...shared, content: b.content ?? "" }));
-  if (type === "xlsx") {
-    if (!Array.isArray(b.data) || b.data.length === 0) {
-      throw new Error("data must be a non-empty array");
-    }
-    return new Uint8Array(generateXlsx(shared.title, b.data));
+  // xlsx
+  if (!Array.isArray(b.data) || b.data.length === 0) {
+    throw new Error("data must be a non-empty array");
   }
-  // pptx
-  if (!Array.isArray(b.slides) || b.slides.length === 0) {
-    throw new Error("slides must be a non-empty array");
-  }
-  return new Uint8Array(await generatePptx({ ...shared, slides: b.slides }));
+  return new Uint8Array(generateXlsx(shared.title, b.data));
 }

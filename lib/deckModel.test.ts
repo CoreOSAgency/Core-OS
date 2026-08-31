@@ -29,6 +29,9 @@ assert.ok(fitBodyFontSize(dense, 5.0, 3.7) < 16, "dense slide should shrink");
   assert.equal(model.slides[1].bodyWidthIn, 8.8, "text-only slide uses full width");
   assert.equal(model.slides[0].image!.dataUrl.slice(0, 22), "data:image/png;base64,");
 
+  // The model is stored as jsonb - it must round-trip losslessly.
+  assert.deepEqual(JSON.parse(JSON.stringify(model)), model);
+
   // --- applyQaFixes: overflow steps the font down, once ---
   const issues: QaIssue[] = [{ slide: 2, issue: "overflow", detail: "text past box" }];
   const before = model.slides[1].bodyFontPt;

@@ -27,6 +27,11 @@ export const DECK_FONT_STACK = "Arial, Helvetica, sans-serif";
 const BODY_FONT_STEPS = [16, 14, 12] as const;
 const BODY_FONT_FLOOR = 10;
 
+// Full step-down sequence (largest to smallest). The server picks a starting
+// size from the estimate below; the live viewer re-fits against real measured
+// DOM height using this same sequence.
+export const BODY_FONT_SEQUENCE: readonly number[] = [16, 14, 12, 10];
+
 // Rough characters-per-line x line-count estimate against the text box, so a
 // dense slide gets its body font stepped down before it ships instead of
 // spilling past the box edge. Deliberately approximate (Arial ~0.5em average

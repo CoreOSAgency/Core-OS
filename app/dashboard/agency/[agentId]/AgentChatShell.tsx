@@ -182,7 +182,9 @@ export default function AgentChatShell({
                       driveLinks={chat.driveLinks}
                       onDownloadDocument={chat.downloadDocument}
                       onDownloadSpreadsheet={chat.downloadSpreadsheet}
-                      onDownloadPresentation={chat.downloadPresentation}
+                      deckTokens={chat.deckTokens}
+                      onOpenDeck={chat.openDeck}
+                      onDownloadDeckPdf={chat.downloadDeckPdf}
                       onSaveToDrive={chat.saveToDrive}
                     />
                   ))}

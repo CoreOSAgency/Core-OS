@@ -32,8 +32,11 @@ export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAuthRoute = path.startsWith("/login");
   const isApiRoute = path.startsWith("/api");
+  // Shared decks are public by design - the link goes to prospects/clients
+  // who have no CoreOS account (same trust model as a Canva/Gamma link).
+  const isPublicRoute = path.startsWith("/decks") || path.startsWith("/api/decks");
 
-  if (!user && !isAuthRoute) {
+  if (!user && !isAuthRoute && !isPublicRoute) {
     if (isApiRoute) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

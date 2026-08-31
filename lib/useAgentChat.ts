@@ -61,7 +61,7 @@ export function relativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
-type DriveFileType = "pdf" | "docx" | "xlsx" | "pptx";
+type DriveFileType = "pdf" | "docx" | "xlsx";
 
 // Shared by ChatPanel (slide-over), CorePanel (Dashboard right rail), and the
 // full-page agent chat route — one implementation of send/history/downloads
@@ -97,6 +97,8 @@ export function useAgentChat({
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [driveLinks, setDriveLinks] = useState<Record<string, string>>({});
+  // Per-message deck share token, once "View deck" has created it this session.
+  const [deckTokens, setDeckTokens] = useState<Record<number, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Last-selected mode is a per-browser preference — persists across agents,
@@ -429,11 +431,16 @@ export function useAgentChat({
     }
   }
 
-  async function downloadPresentation(index: number, text: string, qa = false) {
+  // Creates the deck (once per message per session) and opens its share link.
+  async function openDeck(index: number, text: string) {
     const who = agent ?? activeAgent;
     if (!who) return;
-    const key = `${index}-pptx${qa ? "-qa" : ""}`;
-    setDownloading(key);
+    const existing = deckTokens[index];
+    if (existing) {
+      window.open(`/decks/${existing}`, "_blank", "noopener");
+      return;
+    }
+    setDownloading(`${index}-deck`);
     try {
       const res = await fetch("/api/generate/presentation", {
         method: "POST",
@@ -443,22 +450,31 @@ export function useAgentChat({
           slides: parseMarkdownToSlides(text),
           slideImagePrompts: messages[index]?.slideImagePrompts ?? [],
           projectId,
-          qa,
         }),
       });
-      if (!res.ok) throw new Error("Download failed");
-      await downloadFileFromResponse(res, "presentation.pptx");
-      const failed = Number(res.headers.get("X-Image-Errors") || 0);
-      const qaNote = decodeURIComponent(res.headers.get("X-QA-Notes") || "");
-      if (qaNote) {
-        setError(qaNote);
-      } else if (failed > 0) {
-        setError(
-          `Deck downloaded, but ${failed} slide image${failed > 1 ? "s" : ""} couldn't be generated (Gemini image billing may not be enabled). Those slides are text-only.`
-        );
+      const data = await res.json();
+      if (!res.ok || !data?.shareToken) {
+        throw new Error(data?.error ?? "Couldn't build that deck");
       }
+      setDeckTokens((prev) => ({ ...prev, [index]: data.shareToken }));
+      window.open(`/decks/${data.shareToken}`, "_blank", "noopener");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't build that deck - try again.");
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  async function downloadDeckPdf(index: number) {
+    const token = deckTokens[index];
+    if (!token) return;
+    setDownloading(`${index}-deck-pdf`);
+    try {
+      const res = await fetch(`/api/decks/${token}/pdf`);
+      if (!res.ok) throw new Error("PDF export failed");
+      await downloadFileFromResponse(res, "deck.pdf");
     } catch {
-      setError("Couldn't generate that presentation - try again.");
+      setError("Couldn't export that deck as PDF - try again.");
     } finally {
       setDownloading(null);
     }
@@ -479,10 +495,6 @@ export function useAgentChat({
       };
       if (type === "pdf" || type === "docx") body.content = text;
       if (type === "xlsx") body.data = extractTableData(text);
-      if (type === "pptx") {
-        body.slides = parseMarkdownToSlides(text);
-        body.slideImagePrompts = messages[index]?.slideImagePrompts ?? [];
-      }
 
       const res = await fetch("/api/generate/drive", {
         method: "POST",
@@ -521,6 +533,7 @@ export function useAgentChat({
     error,
     downloading,
     driveLinks,
+    deckTokens,
     driveConnected,
     scrollRef,
     loadConversation,
@@ -529,7 +542,8 @@ export function useAgentChat({
     sendMessage,
     downloadDocument,
     downloadSpreadsheet,
-    downloadPresentation,
+    openDeck,
+    downloadDeckPdf,
     saveToDrive,
   };
 }
