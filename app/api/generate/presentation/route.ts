@@ -2,8 +2,15 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getBrandKit } from "@/lib/projects";
 import { normalizeHex } from "@/lib/imageForExport";
-import { generatePptx, type SlideImage } from "@/lib/presentationGenerator";
+import { renderPptxFromModel } from "@/lib/presentationGenerator";
+import { buildDeckModel, applyQaFixes, type SlideImage, type QaIssue } from "@/lib/deckModel";
+import { screenshotContentSlides, reviewSlideShots, qaNotesSentence } from "@/lib/deckQa";
 import { slugifyFilename } from "@/lib/documentGenerators";
+
+// Headless Chrome (QA path) needs the Node runtime and headroom for a render
+// pass plus one retry.
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const IMAGE_MODEL = "gemini-3.1-flash-lite-image";
 
@@ -54,6 +61,7 @@ export async function POST(request: Request) {
   const title: unknown = body?.title;
   const slides: unknown = body?.slides;
   const projectId: unknown = body?.projectId;
+  const qaRequested: boolean = body?.qa === true;
   const imagePrompts: { slideIndex: number; prompt: string }[] = Array.isArray(
     body?.slideImagePrompts
   )
@@ -93,7 +101,34 @@ export async function POST(request: Request) {
     }
   }
 
-  const buffer = await generatePptx({ title, slides, slideImages, ...brand });
+  let model = await buildDeckModel({ title, slides, slideImages, ...brand });
+
+  // Optional visual QA: screenshot an HTML mirror of the same model, let a
+  // vision model flag overflow/overlap/contrast, apply ONE deterministic fix
+  // and re-check ONCE, then ship whatever we have with a note.
+  let qaRan = false;
+  let qaIssues: QaIssue[] = [];
+  if (qaRequested && key) {
+    try {
+      let shots = await screenshotContentSlides(model);
+      qaIssues = await reviewSlideShots(shots, key);
+      if (qaIssues.length > 0) {
+        const fixed = applyQaFixes(model, qaIssues);
+        if (fixed.changed) {
+          model = fixed.model;
+          shots = await screenshotContentSlides(model);
+          qaIssues = await reviewSlideShots(shots, key);
+        }
+      }
+      qaRan = true;
+    } catch {
+      // Fail open - ship the deck without QA rather than not at all.
+      qaRan = false;
+      qaIssues = [];
+    }
+  }
+
+  const buffer = await renderPptxFromModel(model);
   const filename = slugifyFilename(title);
 
   return new NextResponse(new Uint8Array(buffer), {
@@ -102,6 +137,8 @@ export async function POST(request: Request) {
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       "Content-Disposition": `attachment; filename="${filename}.pptx"`,
       "X-Image-Errors": String(imageErrors),
+      "X-QA-Ran": qaRan ? "1" : "0",
+      "X-QA-Notes": encodeURIComponent(qaRan ? qaNotesSentence(qaIssues) : ""),
     },
   });
 }

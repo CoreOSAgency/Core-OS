@@ -132,7 +132,7 @@ export default function ChatMessage({
   driveLinks: Record<string, string>;
   onDownloadDocument: (index: number, text: string, type: "pdf" | "docx") => void;
   onDownloadSpreadsheet: (index: number, data: Record<string, string>[]) => void;
-  onDownloadPresentation: (index: number, text: string) => void;
+  onDownloadPresentation: (index: number, text: string, qa?: boolean) => void;
   onSaveToDrive: (index: number, type: "pdf" | "docx" | "xlsx" | "pptx", text: string) => void;
 }) {
   const isUser = turn.role === "user";
@@ -274,6 +274,14 @@ export default function ChatMessage({
                   className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
                 >
                   {downloading === `${index}-pptx` ? "Generating…" : "⬇ Download as Presentation"}
+                </button>
+                <button
+                  onClick={() => onDownloadPresentation(index, turn.text, true)}
+                  disabled={downloading === `${index}-pptx-qa`}
+                  title="Renders each slide and runs a visual check for text overflow and overlap before downloading. Slower: adds a render pass and an AI vision call."
+                  className="rounded border border-neutral-600 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700 disabled:opacity-50"
+                >
+                  {downloading === `${index}-pptx-qa` ? "Checking…" : "⬇ QA check + download"}
                 </button>
                 {driveConnected && (
                   <DriveButton

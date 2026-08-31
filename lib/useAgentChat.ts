@@ -429,10 +429,10 @@ export function useAgentChat({
     }
   }
 
-  async function downloadPresentation(index: number, text: string) {
+  async function downloadPresentation(index: number, text: string, qa = false) {
     const who = agent ?? activeAgent;
     if (!who) return;
-    const key = `${index}-pptx`;
+    const key = `${index}-pptx${qa ? "-qa" : ""}`;
     setDownloading(key);
     try {
       const res = await fetch("/api/generate/presentation", {
@@ -443,18 +443,22 @@ export function useAgentChat({
           slides: parseMarkdownToSlides(text),
           slideImagePrompts: messages[index]?.slideImagePrompts ?? [],
           projectId,
+          qa,
         }),
       });
       if (!res.ok) throw new Error("Download failed");
       await downloadFileFromResponse(res, "presentation.pptx");
       const failed = Number(res.headers.get("X-Image-Errors") || 0);
-      if (failed > 0) {
+      const qaNote = decodeURIComponent(res.headers.get("X-QA-Notes") || "");
+      if (qaNote) {
+        setError(qaNote);
+      } else if (failed > 0) {
         setError(
           `Deck downloaded, but ${failed} slide image${failed > 1 ? "s" : ""} couldn't be generated (Gemini image billing may not be enabled). Those slides are text-only.`
         );
       }
     } catch {
-      setError("Couldn't generate that presentation — try again.");
+      setError("Couldn't generate that presentation - try again.");
     } finally {
       setDownloading(null);
     }

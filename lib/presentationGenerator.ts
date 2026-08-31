@@ -1,50 +1,21 @@
 import PptxGenJS from "pptxgenjs";
 import type { Slide } from "./markdownToBlocks";
-import { fetchImageForExport, normalizeHex } from "./imageForExport";
+import {
+  buildDeckModel,
+  BOX,
+  DECK_FONT_STACK,
+  SLIDE_W_IN,
+  SLIDE_H_IN,
+  fitBodyFontSize,
+  type DeckModel,
+  type SlideImage,
+} from "./deckModel";
 
-// Neutral, brand-free defaults for a client-facing deck. The client's real
-// logo, accent colour, and background are layered on top when the project
-// has a brand kit set - CoreOS's own identity is never the default.
-const BG_DEFAULT = "1A1A1A";
-const TEXT = "F5F5F5";
-const NEUTRAL_ACCENT = "9AA0A6";
-const FONT = "Arial";
+// Re-exported so existing importers (routes, tests) don't need to change.
+export { fitBodyFontSize };
+export type { SlideImage };
 
-// A per-slide generated image, keyed to the slide by 1-indexed position.
-export type SlideImage = { slideIndex: number; base64: string; mime: string };
-
-const BODY_FONT_STEPS = [16, 14, 12] as const;
-
-// Rough characters-per-line x line-count estimate against the text box, so a
-// dense slide gets its body font stepped down before it ships instead of
-// spilling past the box edge. Deliberately approximate (Arial ~0.5em average
-// advance, 1.2 line height) - it only needs to catch the bad cases, not lay
-// out pixels. Returns the largest step that fits, or the smallest step if
-// nothing does.
-// ponytail: heuristic fit check; a real headless render (Phase 12 step 2)
-// replaces this if the estimate proves too loose in practice.
-export function fitBodyFontSize(
-  bullets: string[],
-  boxWidthInches: number,
-  boxHeightInches: number,
-): number {
-  if (bullets.length === 0) return BODY_FONT_STEPS[0];
-  const widthPt = boxWidthInches * 72;
-  const boxHeightPt = boxHeightInches * 72;
-  const paraSpaceAfterPt = 10; // matches the addText call below
-
-  for (const size of BODY_FONT_STEPS) {
-    const charsPerLine = Math.max(1, Math.floor(widthPt / (size * 0.5)));
-    const lineHeightPt = size * 1.2;
-    let usedPt = 0;
-    for (const text of bullets) {
-      const lines = Math.max(1, Math.ceil((text.length + 2) / charsPerLine));
-      usedPt += lines * lineHeightPt + paraSpaceAfterPt;
-    }
-    if (usedPt <= boxHeightPt) return size;
-  }
-  return BODY_FONT_STEPS[BODY_FONT_STEPS.length - 1];
-}
+const FONT = DECK_FONT_STACK.split(",")[0].trim(); // "Arial" for pptxgenjs
 
 export type PresentationInput = {
   title: string;
@@ -57,66 +28,63 @@ export type PresentationInput = {
   slideImages?: SlideImage[];
 };
 
-export async function generatePptx({
-  title,
-  slides,
-  logoUrl,
-  accentColor,
-  backgroundColor,
-  slideImages = [],
-}: PresentationInput): Promise<Buffer> {
-  const accent = normalizeHex(accentColor) ?? NEUTRAL_ACCENT;
-  const bg = normalizeHex(backgroundColor) ?? BG_DEFAULT;
-  const logo = logoUrl ? await fetchImageForExport(logoUrl) : null;
-  const imageBySlide = new Map(slideImages.map((im) => [im.slideIndex, im]));
+export async function generatePptx(input: PresentationInput): Promise<Buffer> {
+  const model = await buildDeckModel(input);
+  return renderPptxFromModel(model);
+}
 
+// Renders the real .pptx from an already-resolved model. The QA path builds
+// the model, screenshots an HTML mirror of the same model, optionally adjusts
+// it, then calls this - so what ships is exactly what was QA'd.
+export async function renderPptxFromModel(model: DeckModel): Promise<Buffer> {
   const pres = new PptxGenJS();
-  pres.defineLayout({ name: "DECK_16x9", width: 10, height: 5.63 });
+  pres.defineLayout({ name: "DECK_16x9", width: SLIDE_W_IN, height: SLIDE_H_IN });
   pres.layout = "DECK_16x9";
 
   // Title slide
-  const title_slide = pres.addSlide();
-  title_slide.background = { color: bg };
-  if (logo) {
-    const h = 0.55;
-    const w = Math.min(3, (h * logo.width) / logo.height);
-    title_slide.addImage({ data: `data:${logo.mime};base64,${logo.base64}`, x: 0.6, y: 0.45, w, h });
+  const titleSlide = pres.addSlide();
+  titleSlide.background = { color: model.bg };
+  if (model.logo) {
+    titleSlide.addImage({
+      data: model.logo.dataUrl,
+      x: BOX.logo.x, y: BOX.logo.y, w: model.logo.wIn, h: model.logo.hIn,
+    });
   }
-  title_slide.addText(title, {
-    x: 0.6, y: 2.0, w: 8.8, h: 1.4,
-    color: TEXT, fontFace: FONT, fontSize: 36, bold: true,
+  titleSlide.addText(model.title, {
+    x: BOX.titleText.x, y: BOX.titleText.y, w: BOX.titleText.w, h: BOX.titleText.h,
+    color: model.text, fontFace: FONT, fontSize: BOX.titleText.pt, bold: true,
   });
 
-  slides.forEach((slide, i) => {
+  for (const slide of model.slides) {
     const s = pres.addSlide();
-    s.background = { color: bg };
-    const img = imageBySlide.get(i + 1);
-    // Two columns when a slide has an image; full width otherwise.
-    const textW = img ? 5.0 : 8.8;
+    s.background = { color: model.bg };
 
     s.addText(slide.heading, {
-      x: 0.6, y: 0.45, w: 8.8, h: 0.8,
-      color: accent, fontFace: FONT, fontSize: 26, bold: true,
+      x: BOX.heading.x, y: BOX.heading.y, w: BOX.heading.w, h: BOX.heading.h,
+      color: model.accent, fontFace: FONT, fontSize: BOX.heading.pt, bold: true,
     });
+
     if (slide.bullets.length > 0) {
       s.addText(
         slide.bullets.map((text) => ({ text, options: { bullet: true, breakLine: true } })),
         {
-          x: 0.6, y: 1.5, w: textW, h: 3.7,
-          color: TEXT, fontFace: FONT,
-          fontSize: fitBodyFontSize(slide.bullets, textW, 3.7),
+          x: BOX.body.x, y: BOX.body.y, w: slide.bodyWidthIn, h: BOX.body.h,
+          color: model.text, fontFace: FONT, fontSize: slide.bodyFontPt,
           valign: "top", paraSpaceAfter: 10,
-        }
+        },
       );
     }
-    if (img) {
+
+    if (slide.image) {
+      const w = BOX.image.w * slide.image.scale;
+      const h = BOX.image.h * slide.image.scale;
       s.addImage({
-        data: `data:${img.mime};base64,${img.base64}`,
-        x: 5.9, y: 1.4, w: 3.5, h: 3.6,
-        sizing: { type: "contain", w: 3.5, h: 3.6 },
+        data: slide.image.dataUrl,
+        x: BOX.image.x, y: BOX.image.y, w, h,
+        sizing: { type: "contain", w, h },
       });
     }
-  });
+  }
 
   const buffer = await pres.write({ outputType: "nodebuffer" });
   return buffer as Buffer;
