@@ -1,11 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { findAgent, type Agent } from "@/lib/agents";
 import { extractTableData, hasSlideStructure } from "@/lib/markdownToBlocks";
-import type { ChatTurn } from "@/lib/useAgentChat";
+import { createClient } from "@/lib/supabase/client";
+import type { ChatAttachment, ChatTurn } from "@/lib/useAgentChat";
+
+// Resolves its own URL: a data: URL for a just-sent attachment, or a signed
+// Storage URL for one loaded from history.
+function AttachmentView({ att }: { att: ChatAttachment }) {
+  const [url, setUrl] = useState<string | null>(att.dataUrl ?? null);
+  useEffect(() => {
+    if (att.dataUrl || !att.storage_path) return;
+    createClient()
+      .storage.from("chat-attachments")
+      .createSignedUrl(att.storage_path, 3600)
+      .then(({ data }) => data?.signedUrl && setUrl(data.signedUrl));
+  }, [att.dataUrl, att.storage_path]);
+
+  if (!url) return <span className="text-xs text-neutral-500">📎 {att.file_name}</span>;
+  if (att.mime_type.startsWith("image/"))
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={url} alt={att.file_name} className="max-h-48 rounded-lg border border-white/10" />;
+  if (att.mime_type.startsWith("audio/"))
+    return <audio controls src={url} className="h-8 w-56" />;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="text-xs text-core-purple hover:underline">
+      📄 {att.file_name}
+    </a>
+  );
+}
 
 // Tight, dark-theme-matched overrides — markdown's default block spacing is
 // too loose for a chat bubble at text-sm.
@@ -135,6 +161,13 @@ export default function ChatMessage({
           <p className="mb-1 text-xs font-semibold text-core-amber">
             {speaker.emoji} {speaker.name}
           </p>
+        )}
+        {turn.attachments && turn.attachments.length > 0 && (
+          <div className="mb-2 flex flex-col gap-2">
+            {turn.attachments.map((a, i) => (
+              <AttachmentView key={i} att={a} />
+            ))}
+          </div>
         )}
         {turn.role === "model" ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>

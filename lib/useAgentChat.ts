@@ -6,8 +6,20 @@ import type { ChatMode } from "@/lib/modelRouter";
 import { CHAT_MODE_KEY } from "@/lib/localStorageKeys";
 import { extractTableData, parseMarkdownToSlides } from "@/lib/markdownToBlocks";
 import { downloadFileFromResponse } from "@/lib/download";
+import { createClient } from "@/lib/supabase/client";
+import type { PendingAttachment } from "@/lib/attachments";
+import type { StoredAttachment } from "@/lib/conversations";
 
 export type GroundingSource = { title: string; url: string };
+
+// dataUrl for the just-sent optimistic bubble; storage_path for one loaded
+// from history (ChatMessage signs a URL for it).
+export type ChatAttachment = {
+  mime_type: string;
+  file_name: string;
+  storage_path?: string;
+  dataUrl?: string;
+};
 
 export type ChatTurn = {
   role: "user" | "model";
@@ -18,6 +30,7 @@ export type ChatTurn = {
   agentId?: string;
   agentName?: string;
   suggestedAgentId?: string | null;
+  attachments?: ChatAttachment[];
 };
 
 const CHAT_MODES: ChatMode[] = ["quick", "standard", "deep"];
@@ -157,6 +170,7 @@ export function useAgentChat({
         is_deliverable: boolean;
         grounding_sources?: GroundingSource[];
         agent_id?: string | null;
+        attachments?: StoredAttachment[];
       }) => ({
         role: m.role,
         text: m.content,
@@ -165,6 +179,11 @@ export function useAgentChat({
         groundingSources: m.grounding_sources ?? [],
         agentId: m.agent_id ?? undefined,
         agentName: m.agent_id ? findAgent(m.agent_id)?.name : undefined,
+        attachments: (m.attachments ?? []).map((a) => ({
+          mime_type: a.mime_type,
+          file_name: a.file_name,
+          storage_path: a.storage_path,
+        })),
       })
     );
     const parts: Agent[] = ((partRes.participants ?? []) as string[])
@@ -259,16 +278,61 @@ export function useAgentChat({
     return data.conversation.id as string;
   }
 
-  async function sendMessage(text: string) {
+  async function sendMessage(text: string, pending?: PendingAttachment[]) {
     const trimmed = text.trim();
     const routeTo = activeAgent ?? agent;
-    if (!trimmed || !routeTo || !projectId || sending) return;
+    const atts = pending ?? [];
+    if ((!trimmed && atts.length === 0) || !routeTo || !projectId || sending) return;
 
-    const history = messages;
-    setMessages([...history, { role: "user", text: trimmed }]);
-    setInput("");
     setSending(true);
     setError(null);
+
+    // Upload attachments to Storage first; abort the send if that fails.
+    let uploadedRefs: { storagePath: string; mimeType: string; fileName: string }[] = [];
+    if (atts.length > 0) {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) throw new Error("Not signed in");
+        uploadedRefs = await Promise.all(
+          atts.map(async (a, i) => {
+            const safe = a.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+            const storagePath = `${user.id}/${Date.now()}-${i}-${safe}`;
+            const bin = Uint8Array.from(atob(a.base64), (c) => c.charCodeAt(0));
+            const { error } = await supabase.storage
+              .from("chat-attachments")
+              .upload(storagePath, bin, { contentType: a.mimeType });
+            if (error) throw error;
+            return { storagePath, mimeType: a.mimeType, fileName: a.fileName };
+          })
+        );
+      } catch (err) {
+        setError(
+          err instanceof Error && err.message.includes("Bucket not found")
+            ? "Attachment storage isn't set up on this deployment yet."
+            : "Couldn't upload that attachment - try again."
+        );
+        setSending(false);
+        return;
+      }
+    }
+
+    const history = messages;
+    setMessages([
+      ...history,
+      {
+        role: "user",
+        text: trimmed,
+        attachments: atts.map((a) => ({
+          mime_type: a.mimeType,
+          file_name: a.fileName,
+          dataUrl: `data:${a.mimeType};base64,${a.base64}`,
+        })),
+      },
+    ]);
+    setInput("");
     setParticipants((prev) =>
       prev.some((p) => p.id === routeTo.id) ? prev : [...prev, routeTo]
     );
@@ -279,11 +343,12 @@ export function useAgentChat({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           agentId: routeTo.id,
-          message: trimmed,
+          message: trimmed || "(see attachment)",
           projectId,
           conversationId,
           history,
           mode,
+          attachments: uploadedRefs,
         }),
       });
       const data = await res.json();

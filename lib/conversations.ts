@@ -29,6 +29,11 @@ function mapConversation(row: unknown): Conversation {
 }
 
 export type GroundingSource = { title: string; url: string };
+export type StoredAttachment = {
+  storage_path: string;
+  mime_type: string;
+  file_name: string;
+};
 
 export type StoredMessage = {
   role: "user" | "model";
@@ -40,6 +45,7 @@ export type StoredMessage = {
   thinking_level: string | null;
   grounding_sources: GroundingSource[];
   agent_id: string | null;
+  attachments: StoredAttachment[];
 };
 
 export async function listConversations(
@@ -142,6 +148,7 @@ export async function createGroupConversation(
           thinking_level: m.thinking_level,
           grounding_sources: m.grounding_sources,
           agent_id: m.agent_id,
+          attachments: m.attachments,
         }))
       );
       if (seedErr) throw seedErr;
@@ -221,7 +228,7 @@ export async function getMessages(
   const { data, error } = await supabase
     .from("messages")
     .select(
-      "role, content, context_saved, is_deliverable, mode, model_used, thinking_level, grounding_sources, agent_id"
+      "role, content, context_saved, is_deliverable, mode, model_used, thinking_level, grounding_sources, agent_id, attachments"
     )
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
@@ -246,6 +253,7 @@ export async function appendTurn(
     thinkingLevel: string;
     groundingSources: GroundingSource[];
     agentId: string;
+    attachments: StoredAttachment[];
   }
 ): Promise<void> {
   // Both rows list every column explicitly — a batch insert where rows have
@@ -263,6 +271,7 @@ export async function appendTurn(
       thinking_level: null,
       grounding_sources: [],
       agent_id: null,
+      attachments: meta.attachments,
     },
     {
       conversation_id: conversationId,
@@ -275,6 +284,7 @@ export async function appendTurn(
       thinking_level: meta.thinkingLevel,
       grounding_sources: meta.groundingSources,
       agent_id: meta.agentId,
+      attachments: [],
     },
   ]);
   if (insertError) throw insertError;

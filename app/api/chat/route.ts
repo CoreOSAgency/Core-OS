@@ -52,6 +52,17 @@ export async function POST(request: Request) {
   const history: ChatTurn[] = Array.isArray(body?.history) ? body.history : [];
   // Absent/unknown mode falls back to 'standard' so older clients still work.
   const mode: ChatMode = MODES.includes(body?.mode) ? body.mode : "standard";
+  // Files/voice notes: the client uploads bytes to Storage and passes paths
+  // here; the route pulls them for Gemini and records them on the message.
+  type IncomingAttachment = { storagePath: string; mimeType: string; fileName: string };
+  const attachmentRefs: IncomingAttachment[] = Array.isArray(body?.attachments)
+    ? body.attachments.filter(
+        (a: unknown): a is IncomingAttachment =>
+          !!a &&
+          typeof (a as IncomingAttachment).storagePath === "string" &&
+          typeof (a as IncomingAttachment).mimeType === "string"
+      )
+    : [];
 
   if (typeof agentId !== "string" || typeof message !== "string" || !message.trim()) {
     return NextResponse.json(
@@ -92,6 +103,24 @@ export async function POST(request: Request) {
     formatProjectContextForPrompt(savedContext) +
     SHARED_AGENT_BEHAVIOR;
 
+  // Pull attachment bytes from Storage (RLS scopes this to the caller's own
+  // files) and hand them to Gemini as inline_data on the user turn.
+  const inlineParts: { inline_data: { mime_type: string; data: string } }[] = [];
+  const storedAttachments: { storage_path: string; mime_type: string; file_name: string }[] = [];
+  for (const ref of attachmentRefs) {
+    const { data: blob, error } = await supabase.storage
+      .from("chat-attachments")
+      .download(ref.storagePath);
+    if (error || !blob) continue;
+    const b64 = Buffer.from(await blob.arrayBuffer()).toString("base64");
+    inlineParts.push({ inline_data: { mime_type: ref.mimeType, data: b64 } });
+    storedAttachments.push({
+      storage_path: ref.storagePath,
+      mime_type: ref.mimeType,
+      file_name: ref.fileName || ref.storagePath.split("/").pop() || "file",
+    });
+  }
+
   // In a multi-agent thread, label each prior model turn with who said it so
   // the agent answering now knows which lines were someone else talking.
   // No label when it's the same agent (talking to itself).
@@ -103,7 +132,7 @@ export async function POST(request: Request) {
           : "";
       return { role: turn.role, parts: [{ text: label + turn.text }] };
     }),
-    { role: "user", parts: [{ text: message }] },
+    { role: "user", parts: [{ text: message }, ...inlineParts] },
   ];
 
   const config = getModelConfig(mode);
@@ -219,6 +248,7 @@ export async function POST(request: Request) {
     thinkingLevel: config.thinkingLevel,
     groundingSources,
     agentId,
+    attachments: storedAttachments,
   });
 
   // The first time an agent answers in a thread, it becomes a participant.
