@@ -209,7 +209,7 @@ export default function DashboardShell({
       />
 
       <main className="min-h-0 flex-1 overflow-y-auto bg-core-main">
-        <div className="sunbird-band h-0.5 w-full" />
+        <div className="sunbird-band h-1 w-full" />
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-6 py-4">
           <div className="relative">
             {!loading && projects.length > 0 && (

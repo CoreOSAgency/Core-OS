@@ -370,7 +370,7 @@ function EventsCard({
             <button
               onClick={() => remove(ev.id)}
               disabled={busyId === ev.id}
-              className="rounded border border-white/10 px-2 py-0.5 text-xs text-neutral-500 hover:bg-white/5 disabled:opacity-50"
+              className="rounded border border-core-scarlet/40 px-2 py-0.5 text-xs text-core-scarlet hover:bg-core-scarlet/10 disabled:opacity-50"
             >
               Delete
             </button>

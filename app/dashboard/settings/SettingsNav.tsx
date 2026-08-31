@@ -40,7 +40,7 @@ export default function SettingsNav() {
       <div className="px-2 py-4">
         <h2 className="px-3 pb-3 text-sm font-semibold text-neutral-100">Settings</h2>
 
-        <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold/70">
+        <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold">
           CURRENT WORKSPACE
         </p>
         <ul className="mb-4 space-y-0.5">
@@ -51,7 +51,7 @@ export default function SettingsNav() {
           ))}
         </ul>
 
-        <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold/70">
+        <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold">
           USER
         </p>
         <ul className="space-y-0.5">

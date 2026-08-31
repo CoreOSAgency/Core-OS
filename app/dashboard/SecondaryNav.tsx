@@ -80,7 +80,7 @@ export default function SecondaryNav({
             <AgentRosterList selectedAgentId={selectedAgentId} onSelectAgent={onSelectAgent} />
 
             <div>
-              <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold/70">TOOLS</p>
+              <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold">TOOLS</p>
               <ul>
                 {LIVE_TOOLS.map((tool) => (
                   <li key={tool}>
@@ -121,14 +121,14 @@ export default function SecondaryNav({
           >
             + New client
           </button>
-          <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold/70">ALL CLIENTS</p>
+          <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold">ALL CLIENTS</p>
           <p className="px-3 text-sm text-neutral-600">No clients yet.</p>
         </div>
       )}
 
       {section === "files" && (
         <div className="flex-1 px-2 pb-4">
-          <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold/70">FOLDERS</p>
+          <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-core-gold">FOLDERS</p>
           <ul className="space-y-0.5">
             {["Agency", "Unfiled", "Trash"].map((f) => (
               <li key={f}>

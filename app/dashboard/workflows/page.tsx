@@ -253,7 +253,7 @@ export default function WorkflowsPage() {
         </p>
         {agentSections.map((section) => (
           <div key={section.id} className="mb-4">
-            <p className="px-1 pb-1 text-[10px] font-semibold tracking-widest text-core-gold/70">
+            <p className="px-1 pb-1 text-[10px] font-semibold tracking-widest text-core-gold">
               {section.title}
             </p>
             <ul className="space-y-1">
@@ -310,7 +310,7 @@ export default function WorkflowsPage() {
               </button>
               <button
                 onClick={del}
-                className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-500 hover:bg-white/5"
+                className="rounded-lg border border-core-scarlet/40 px-3 py-1.5 text-sm text-core-scarlet hover:bg-core-scarlet/10"
               >
                 Delete
               </button>

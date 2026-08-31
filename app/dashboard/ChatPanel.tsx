@@ -26,6 +26,7 @@ export default function ChatPanel({
 
   return (
     <aside className="flex h-full w-[380px] max-w-full shrink-0 flex-col border-l border-white/10 bg-core-nav">
+        <div className="sunbird-band h-1 w-full shrink-0" />
         {agent && (
           <>
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
