@@ -101,7 +101,7 @@ function ClientReportView() {
         <Stat
           label="Outstanding"
           value={money(report.billed.outstanding, cur)}
-          tone={report.billed.outstanding > 0 ? "text-red-400" : "text-neutral-100"}
+          tone={report.billed.outstanding > 0 ? "text-core-scarlet" : "text-neutral-100"}
         />
       </div>
 
@@ -176,7 +176,7 @@ function AgencyReportView() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="MRR" value={money(report.mrr, cur)} />
         <Stat label="Revenue this month" value={money(report.revenueThisMonth, cur)} />
-        <Stat label="Overdue" value={money(report.overdueTotal, cur)} tone="text-red-400" />
+        <Stat label="Overdue" value={money(report.overdueTotal, cur)} tone="text-core-scarlet" />
         <Stat label="Active clients" value={String(report.activeClients)} />
       </div>
 

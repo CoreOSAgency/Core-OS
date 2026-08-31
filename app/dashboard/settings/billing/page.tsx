@@ -51,8 +51,8 @@ function money(amount: number | null | undefined, currency = "USD"): string {
 }
 
 const STATUS_TONE: Record<BillingEventStatus, string> = {
-  paid: "text-emerald-400",
-  overdue: "text-red-400",
+  paid: "text-core-green",
+  overdue: "text-core-scarlet",
   pending: "text-neutral-400",
   invoiced: "text-sky-400",
   void: "text-neutral-600",
@@ -440,7 +440,7 @@ function AgencyView() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="MRR" value={money(summary.mrr, cur)} />
         <Stat label="Revenue this month" value={money(summary.revenueThisMonth, cur)} />
-        <Stat label="Overdue" value={money(summary.overdueTotal, cur)} tone="text-red-400" />
+        <Stat label="Overdue" value={money(summary.overdueTotal, cur)} tone="text-core-scarlet" />
         <Stat label="Active clients" value={String(summary.activeClients)} />
       </div>
 

@@ -3,8 +3,8 @@ import type { Slide } from "./markdownToBlocks";
 
 // CoreOS dark theme for exported decks: near-black background, purple
 // accent for headings, white body text.
-const BG = "0A0A0A";
-const ACCENT = "A855F7"; // purple-500
+const BG = "091209"; // sunbird deep green-black (core-main)
+const ACCENT = "7C4DFF"; // core-purple — iridescent blue-violet
 const TEXT = "F5F5F5";
 const MUTED = "A3A3A3";
 const FONT = "Arial";

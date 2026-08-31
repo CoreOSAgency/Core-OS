@@ -316,7 +316,7 @@ export default function WorkflowsPage() {
               </button>
             </>
           )}
-          {error && <span className="text-xs text-red-400">{error}</span>}
+          {error && <span className="text-xs text-core-scarlet">{error}</span>}
         </div>
 
         {webhookUrl && (
@@ -375,7 +375,7 @@ export default function WorkflowsPage() {
                 <div className="space-y-3">
                   <p
                     className={`text-xs font-medium ${
-                      run.status === "completed" ? "text-emerald-400" : "text-red-400"
+                      run.status === "completed" ? "text-core-green" : "text-core-scarlet"
                     }`}
                   >
                     Run {run.status}
@@ -389,7 +389,7 @@ export default function WorkflowsPage() {
                         {i + 1}. {s.agentName}
                       </p>
                       {s.error ? (
-                        <p className="mt-1 text-xs text-red-400">{s.error}</p>
+                        <p className="mt-1 text-xs text-core-scarlet">{s.error}</p>
                       ) : (
                         <p className="mt-1 whitespace-pre-wrap text-xs text-neutral-400">
                           {s.output.slice(0, 600)}

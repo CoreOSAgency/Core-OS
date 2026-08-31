@@ -32,7 +32,7 @@ const markdownComponents = {
     <code className="rounded bg-black/30 px-1 py-0.5 text-xs" {...props} />
   ),
   a: (props: React.ComponentPropsWithoutRef<"a">) => (
-    <a className="underline hover:text-emerald-400" target="_blank" rel="noreferrer" {...props} />
+    <a className="underline hover:text-core-green" target="_blank" rel="noreferrer" {...props} />
   ),
   table: (props: React.ComponentPropsWithoutRef<"table">) => (
     <div className="mb-2 overflow-x-auto">
@@ -62,7 +62,7 @@ function DriveButton({
         href={link}
         target="_blank"
         rel="noreferrer"
-        className="rounded border border-emerald-700 px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-500/10"
+        className="rounded border border-core-green px-2 py-1 text-xs text-core-green hover:bg-core-purple/10"
       >
         ✓ Open in Drive
       </a>
@@ -125,7 +125,7 @@ export default function ChatMessage({
         ) : (
           turn.text
         )}
-        {turn.contextSaved && <p className="mt-1.5 text-xs text-emerald-400/80">✓ Project memory saved</p>}
+        {turn.contextSaved && <p className="mt-1.5 text-xs text-core-green/80">✓ Project memory saved</p>}
         {turn.role === "model" && turn.groundingSources && turn.groundingSources.length > 0 && (
           <details className="mt-2 border-t border-neutral-700/60 pt-2">
             <summary className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-200">
@@ -138,7 +138,7 @@ export default function ChatMessage({
                     href={s.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-emerald-400 hover:underline"
+                    className="text-xs text-core-green hover:underline"
                   >
                     {s.title}
                   </a>

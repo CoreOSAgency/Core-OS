@@ -265,7 +265,7 @@ export default function AgencyOverview({
                 {scanning ? "Scanning…" : "Scan for brand identity"}
               </button>
             </div>
-            {scanError && <p className="text-xs text-red-400">{scanError}</p>}
+            {scanError && <p className="text-xs text-core-scarlet">{scanError}</p>}
           </div>
 
           {context.logo_url && (

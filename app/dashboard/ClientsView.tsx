@@ -6,9 +6,9 @@ import type { Project } from "@/lib/projects";
 const STATUS_TONE: Record<string, string> = {
   lead: "text-sky-400",
   onboarding: "text-amber-400",
-  active: "text-emerald-400",
+  active: "text-core-green",
   paused: "text-neutral-400",
-  churned: "text-red-400",
+  churned: "text-core-scarlet",
 };
 
 export default function ClientsView({

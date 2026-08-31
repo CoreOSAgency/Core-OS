@@ -223,7 +223,7 @@ export default function IntegrationsPage() {
           <button onClick={saveGhl} disabled={savingGhl || !project} className={primaryButtonClass}>
             {savingGhl ? "Saving…" : "Save"}
           </button>
-          {savedGhl && <span className="text-xs text-emerald-400">✓ Saved</span>}
+          {savedGhl && <span className="text-xs text-core-green">✓ Saved</span>}
         </div>
       </SettingsCard>
 

@@ -17,7 +17,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-950 p-6">
+    <div className="flex min-h-screen items-center justify-center bg-core-main p-6">
       <div className="max-w-md text-center">
         <div className="mb-4 text-4xl">⚠️</div>
         <h2 className="mb-2 text-lg font-bold text-neutral-100">Something went wrong</h2>
@@ -26,7 +26,7 @@ export default function GlobalError({
         </p>
         <details className="mb-6 rounded-lg border border-white/10 bg-core-card p-3 text-left">
           <summary className="cursor-pointer text-xs text-neutral-500">Error details</summary>
-          <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-red-400">
+          <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-core-scarlet">
             {error.message}
           </pre>
         </details>

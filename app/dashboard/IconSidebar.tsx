@@ -147,7 +147,7 @@ function NavIcon({
         }`}
       >
         <Icon name={icon} />
-        {badge && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-red-500" />}
+        {badge && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-core-scarlet" />}
       </button>
     </div>
   );

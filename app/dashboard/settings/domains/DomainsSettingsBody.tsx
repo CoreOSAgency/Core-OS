@@ -12,8 +12,8 @@ import {
 
 const STATUS_TONE: Record<ClientDomain["verification_status"], string> = {
   pending: "text-neutral-400",
-  verified: "text-emerald-400",
-  failed: "text-red-400",
+  verified: "text-core-green",
+  failed: "text-core-scarlet",
 };
 export function DomainsSettingsBody() {
   const { project } = useActiveProject();
@@ -106,7 +106,7 @@ export function DomainsSettingsBody() {
                 <span className={`text-xs font-medium ${STATUS_TONE[d.verification_status]}`}>
                   {d.verification_status}
                 </span>
-                {d.connected && <span className="text-xs text-emerald-400">● connected</span>}
+                {d.connected && <span className="text-xs text-core-green">● connected</span>}
                 <span className="flex-1" />
                 {showHelp && (
                   <button
@@ -179,7 +179,7 @@ export function DomainsSettingsBody() {
           {adding ? "Adding…" : "Add"}
         </button>
       </div>
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-core-scarlet">{error}</p>}
     </SettingsCard>
   );
 }

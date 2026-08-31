@@ -89,12 +89,12 @@ export default function ProjectMemoryPanel({
             onChange={(e) => setImportUrl(e.target.value)}
             placeholder="Import from website URL…"
             disabled={importing}
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500 disabled:opacity-60"
+            className="w-full rounded-lg border border-neutral-700 bg-core-main px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-core-purple disabled:opacity-60"
           />
           <button
             type="submit"
             disabled={importing || !importUrl.trim()}
-            className="whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
+            className="whitespace-nowrap rounded-lg bg-core-purple px-3 py-2 text-sm font-medium text-white hover:bg-core-purple disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
           >
             {importing ? "Importing…" : "Import"}
           </button>
@@ -114,7 +114,7 @@ export default function ProjectMemoryPanel({
           {entries.map(([key, value]) => (
             <div
               key={key}
-              className="rounded-lg border border-neutral-800 bg-neutral-950 p-3"
+              className="rounded-lg border border-neutral-800 bg-core-main p-3"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium uppercase tracking-wide text-neutral-500">
@@ -127,14 +127,14 @@ export default function ProjectMemoryPanel({
                         setEditingKey(key);
                         setEditValue(value);
                       }}
-                      className="text-xs text-neutral-400 hover:text-emerald-400"
+                      className="text-xs text-neutral-400 hover:text-core-green"
                     >
                       Edit
                     </button>
                   )}
                   <button
                     onClick={() => deleteEntry(key)}
-                    className="text-xs text-neutral-400 hover:text-red-400"
+                    className="text-xs text-neutral-400 hover:text-core-scarlet"
                   >
                     Delete
                   </button>
@@ -147,11 +147,11 @@ export default function ProjectMemoryPanel({
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
                     autoFocus
-                    className="w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+                    className="w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100 outline-none focus:border-core-purple"
                   />
                   <button
                     onClick={() => saveEdit(key)}
-                    className="rounded bg-emerald-500 px-2 py-1 text-xs font-medium text-neutral-950 hover:bg-emerald-400"
+                    className="rounded bg-core-purple px-2 py-1 text-xs font-medium text-white hover:bg-core-purple"
                   >
                     Save
                   </button>

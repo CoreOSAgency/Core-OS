@@ -303,7 +303,7 @@ export default function NewClientPage() {
             </dl>
           )}
 
-          {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
+          {error && <p className="mt-4 text-sm text-core-scarlet">{error}</p>}
 
           <div className="mt-6 flex gap-2">
             {step > 0 && (

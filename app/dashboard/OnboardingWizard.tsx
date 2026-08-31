@@ -80,7 +80,7 @@ export default function OnboardingWizard({
   }
 
   const inputClass =
-    "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500";
+    "w-full rounded-lg border border-neutral-700 bg-core-main px-3 py-2 text-sm text-neutral-100 outline-none focus:border-core-purple";
 
   return (
     <div className="mx-auto max-w-md rounded-xl border border-neutral-800 bg-neutral-900/60 p-6">
@@ -89,13 +89,13 @@ export default function OnboardingWizard({
           <div key={label} className="flex flex-1 items-center gap-2">
             <div
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
-                i <= step ? "bg-emerald-500 text-neutral-950" : "bg-neutral-800 text-neutral-500"
+                i <= step ? "bg-core-purple text-white" : "bg-neutral-800 text-neutral-500"
               }`}
             >
               {i + 1}
             </div>
             {i < STEPS.length - 1 && (
-              <div className={`h-px flex-1 ${i < step ? "bg-emerald-500" : "bg-neutral-800"}`} />
+              <div className={`h-px flex-1 ${i < step ? "bg-core-purple" : "bg-neutral-800"}`} />
             )}
           </div>
         ))}
@@ -223,7 +223,7 @@ export default function OnboardingWizard({
           type="button"
           onClick={next}
           disabled={submitting || (step === 0 && !agencyName.trim())}
-          className="ml-auto rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+          className="ml-auto rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-white hover:bg-core-purple disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? "Setting up…" : step === STEPS.length - 1 ? "Finish setup" : "Next"}
         </button>

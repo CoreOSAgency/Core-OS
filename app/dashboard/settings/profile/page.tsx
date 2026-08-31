@@ -116,7 +116,7 @@ export default function ProfilePage() {
           <button onClick={saveName} disabled={savingName} className={primaryButtonClass}>
             {savingName ? "Saving…" : "Save"}
           </button>
-          {savedName && <span className="text-xs text-emerald-400">✓ Saved</span>}
+          {savedName && <span className="text-xs text-core-green">✓ Saved</span>}
         </div>
       </SettingsCard>
 
@@ -142,7 +142,7 @@ export default function ProfilePage() {
             {savingPassword ? "Updating…" : "Update password"}
           </button>
           {passwordMessage && (
-            <span className={`text-xs ${passwordMessage.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>
+            <span className={`text-xs ${passwordMessage.startsWith("✓") ? "text-core-green" : "text-core-scarlet"}`}>
               {passwordMessage}
             </span>
           )}
@@ -174,21 +174,21 @@ export default function ProfilePage() {
             />
           </label>
         </div>
-        {photoError && <p className="text-xs text-red-400">{photoError}</p>}
+        {photoError && <p className="text-xs text-core-scarlet">{photoError}</p>}
       </SettingsCard>
 
       <SettingsCard title="Delete Account" description="Permanently deletes your account and all projects. This cannot be undone.">
         {!confirmingDelete ? (
-          <button onClick={() => setConfirmingDelete(true)} className="rounded-lg border border-red-900 px-4 py-2 text-sm text-red-400 hover:bg-red-950/40">
+          <button onClick={() => setConfirmingDelete(true)} className="rounded-lg border border-core-scarlet/40 px-4 py-2 text-sm text-core-scarlet hover:bg-core-scarlet/10">
             Delete account
           </button>
         ) : (
           <div className="space-y-2">
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-core-scarlet">
               Account deletion needs an admin-level key this deployment doesn&apos;t have configured yet — nothing will happen if you confirm.
             </p>
             <div className="flex gap-2">
-              <button disabled className="rounded-lg border border-red-900 px-4 py-2 text-sm text-red-400 opacity-50">
+              <button disabled className="rounded-lg border border-core-scarlet/40 px-4 py-2 text-sm text-core-scarlet opacity-50">
                 Confirm delete
               </button>
               <button onClick={() => setConfirmingDelete(false)} className={secondaryButtonClass}>

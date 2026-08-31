@@ -160,7 +160,7 @@ export default function CorePanel({
               {chat.mode === "deep" ? "Researching…" : "Core is typing…"}
             </div>
           )}
-          {chat.error && <p className="text-sm text-red-400">{chat.error}</p>}
+          {chat.error && <p className="text-sm text-core-scarlet">{chat.error}</p>}
         </div>
       )}
 

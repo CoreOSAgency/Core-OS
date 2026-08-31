@@ -149,7 +149,7 @@ export default function OrganizationPage() {
           <button onClick={save} disabled={saving} className={primaryButtonClass}>
             {saving ? "Saving…" : "Save changes"}
           </button>
-          {saved && <span className="text-xs text-emerald-400">✓ Saved</span>}
+          {saved && <span className="text-xs text-core-green">✓ Saved</span>}
         </div>
       </SettingsCard>
 

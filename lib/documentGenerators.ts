@@ -42,13 +42,14 @@ function cleanPdfText(text: string): string {
   return sanitizeForPdf(stripInlineMarkdown(text));
 }
 
-// CoreOS brand accent (emerald-500, same as the app UI) as 0–1 RGB.
-const ACCENT = rgb(0x10 / 255, 0xb9 / 255, 0x81 / 255);
+// CoreOS brand accent — the app's primary (core-purple, iridescent
+// blue-violet) as 0–1 RGB.
+const ACCENT = rgb(0x7c / 255, 0x4d / 255, 0xff / 255);
 const INK = rgb(0.1, 0.1, 0.1);
 const MUTED = rgb(0.45, 0.45, 0.45);
 
 // Same accent, as a docx hex color (no '#').
-const DOCX_ACCENT = "10B981";
+const DOCX_ACCENT = "7C4DFF";
 
 function docxHeader(): Header {
   return new Header({

@@ -88,7 +88,7 @@ export default function PreferencesPage() {
             </select>
           </div>
         </div>
-        {saved && <p className="text-xs text-emerald-400">✓ Saved to this browser</p>}
+        {saved && <p className="text-xs text-core-green">✓ Saved to this browser</p>}
       </SettingsCard>
     </SettingsPage>
   );
