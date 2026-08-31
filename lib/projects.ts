@@ -126,6 +126,24 @@ export async function deleteProjectContextKey(
   if (error) throw error;
 }
 
+// The client's brand kit for generated deliverables, pulled from the same
+// project_context keys the organization page and website scraper write.
+export async function getBrandKit(
+  supabase: SupabaseClient,
+  projectId: string
+): Promise<{ logoUrl?: string; accentColor?: string }> {
+  const ctx = await getProjectContext(supabase, projectId);
+  const accentColor =
+    ctx.primary_color ||
+    ctx.accent_color ||
+    (ctx.brand_colours ?? "").split(",")[0]?.trim() ||
+    undefined;
+  return {
+    logoUrl: ctx.logo_url || undefined,
+    accentColor: accentColor || undefined,
+  };
+}
+
 // Exact format requested: one line per entry, "PROJECT CONTEXT: [key]: [value]".
 export function formatProjectContextForPrompt(
   context: Record<string, string>

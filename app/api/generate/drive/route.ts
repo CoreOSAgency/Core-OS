@@ -4,7 +4,7 @@ import { getValidAccessToken, uploadToDrive } from "@/lib/googleDrive";
 import { generateDocx, generatePdf } from "@/lib/documentGenerators";
 import { generateXlsx } from "@/lib/spreadsheetGenerator";
 import { generatePptx } from "@/lib/presentationGenerator";
-import { getProjectContext } from "@/lib/projects";
+import { getBrandKit, getProjectContext } from "@/lib/projects";
 
 type FileType = "pdf" | "docx" | "xlsx" | "pptx";
 
@@ -41,14 +41,16 @@ export async function POST(request: Request) {
   }
 
   let folderId: string | undefined;
+  let brand: { logoUrl?: string; accentColor?: string } = {};
   if (typeof projectId === "string" && projectId) {
     const context = await getProjectContext(supabase, projectId);
     folderId = context.google_drive_folder_id || undefined;
+    brand = await getBrandKit(supabase, projectId);
   }
 
   let bytes: Uint8Array;
   try {
-    bytes = await generateBytes(type, body);
+    bytes = await generateBytes(type, body, brand);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Couldn't generate that file" },
@@ -82,13 +84,13 @@ type DriveRequestBody = {
   agentName?: string;
 };
 
-async function generateBytes(type: FileType, body: unknown): Promise<Uint8Array> {
+async function generateBytes(
+  type: FileType,
+  body: unknown,
+  brand: { logoUrl?: string; accentColor?: string }
+): Promise<Uint8Array> {
   const b = body as DriveRequestBody;
-  const shared = {
-    title: b.title,
-    projectName: typeof b.projectName === "string" ? b.projectName : undefined,
-    agentName: typeof b.agentName === "string" ? b.agentName : undefined,
-  };
+  const shared = { title: b.title, ...brand };
 
   if (type === "pdf") return generatePdf({ ...shared, content: b.content ?? "" });
   if (type === "docx") return new Uint8Array(await generateDocx({ ...shared, content: b.content ?? "" }));

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { getBrandKit } from "@/lib/projects";
 import { generatePptx } from "@/lib/presentationGenerator";
 import { slugifyFilename } from "@/lib/documentGenerators";
 
@@ -7,8 +9,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const title: unknown = body?.title;
   const slides: unknown = body?.slides;
-  const projectName: unknown = body?.projectName;
-  const agentName: unknown = body?.agentName;
+  const projectId: unknown = body?.projectId;
 
   if (typeof title !== "string" || !title.trim()) {
     return NextResponse.json({ error: "title is required" }, { status: 400 });
@@ -20,12 +21,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const buffer = await generatePptx({
-    title,
-    slides,
-    projectName: typeof projectName === "string" ? projectName : undefined,
-    agentName: typeof agentName === "string" ? agentName : undefined,
-  });
+  // The deck carries the client's brand, never CoreOS's. RLS scopes the
+  // context read to a project the caller owns.
+  let brand: { logoUrl?: string; accentColor?: string } = {};
+  if (typeof projectId === "string" && projectId) {
+    brand = await getBrandKit(createClient(), projectId);
+  }
+
+  const buffer = await generatePptx({ title, slides, ...brand });
   const filename = slugifyFilename(title);
 
   return new NextResponse(new Uint8Array(buffer), {

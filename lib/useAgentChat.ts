@@ -277,8 +277,7 @@ export function useAgentChat({
           type,
           title: deriveTitle(text, agent.name),
           content: text,
-          projectName,
-          agentName: agent.name,
+          projectId,
         }),
       });
       if (!res.ok) throw new Error("Download failed");
@@ -320,8 +319,7 @@ export function useAgentChat({
         body: JSON.stringify({
           title: deriveTitle(text, agent.name),
           slides: parseMarkdownToSlides(text),
-          projectName,
-          agentName: agent.name,
+          projectId,
         }),
       });
       if (!res.ok) throw new Error("Download failed");

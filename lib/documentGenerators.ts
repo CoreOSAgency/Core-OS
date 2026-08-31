@@ -4,6 +4,7 @@ import {
   Packer,
   Paragraph,
   TextRun,
+  ImageRun,
   HeadingLevel,
   Table,
   TableRow,
@@ -20,13 +21,18 @@ import {
   parseInlineRuns,
   stripInlineMarkdown,
 } from "./markdownToBlocks";
+import { fetchImageForExport, normalizeHex, type ExportImage } from "./imageForExport";
 
 export type DocumentInput = {
   title: string;
   content: string;
   projectName?: string;
   agentName?: string;
+  logoUrl?: string;
+  accentColor?: string;
 };
+
+const NEUTRAL_ACCENT_HEX = "6B7280"; // slate gray - the brand-free default
 
 // pdf-lib's standard fonts only encode WinAnsi (~Latin-1 + a few extras) —
 // they throw on anything outside that (emoji, ⚠, arrows, etc.), which
@@ -42,25 +48,30 @@ function cleanPdfText(text: string): string {
   return sanitizeForPdf(stripInlineMarkdown(text));
 }
 
-// CoreOS brand accent — the app's primary (core-purple, iridescent
-// blue-violet) as 0–1 RGB.
-const ACCENT = rgb(0x7c / 255, 0x4d / 255, 0xff / 255);
 const INK = rgb(0.1, 0.1, 0.1);
 const MUTED = rgb(0.45, 0.45, 0.45);
 
-// Same accent, as a docx hex color (no '#').
-const DOCX_ACCENT = "7C4DFF";
+function hexToRgb(hex: string) {
+  const n = parseInt(hex, 16);
+  return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+}
 
-function docxHeader(): Header {
-  return new Header({
-    children: [
-      new Paragraph({
-        children: [
-          new TextRun({ text: "CoreOS", bold: true, color: DOCX_ACCENT, size: 18 }),
-        ],
-      }),
-    ],
-  });
+// A client-facing doc carries the client's logo (or nothing) in the header,
+// never CoreOS's mark.
+function docxHeader(logo: ExportImage | null): Header {
+  const children = logo
+    ? [
+        new ImageRun({
+          type: logo.mime === "image/png" ? "png" : "jpg",
+          data: logo.bytes,
+          transformation: {
+            height: 24,
+            width: Math.round((24 * logo.width) / logo.height),
+          },
+        }),
+      ]
+    : [];
+  return new Header({ children: [new Paragraph({ children })] });
 }
 
 function docxFooter(): Footer {
@@ -106,12 +117,21 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 export async function generatePdf({
   title,
   content,
-  projectName,
-  agentName,
+  logoUrl,
+  accentColor,
 }: DocumentInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const accentHex = normalizeHex(accentColor) ?? NEUTRAL_ACCENT_HEX;
+  const ACCENT = hexToRgb(accentHex);
+
+  const logo = logoUrl ? await fetchImageForExport(logoUrl) : null;
+  const logoImg = logo
+    ? logo.mime === "image/png"
+      ? await doc.embedPng(logo.bytes).catch(() => null)
+      : await doc.embedJpg(logo.bytes).catch(() => null)
+    : null;
 
   let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   let y = PAGE_HEIGHT - MARGIN;
@@ -140,17 +160,14 @@ export async function generatePdf({
     }
   }
 
-  // Header
-  page.drawText("CoreOS", { x: MARGIN, y, size: 10, font: bold, color: ACCENT });
-  y -= 26;
-  drawLines(wrapText(cleanPdfText(title), bold, 20, CONTENT_WIDTH), 20, bold, INK, 6);
-  const subtitle = [agentName && `by ${agentName}`, projectName]
-    .filter(Boolean)
-    .join(" — ");
-  if (subtitle) {
-    y -= 2;
-    drawLines([subtitle], 10, font, MUTED, 4);
+  // Header - the client's logo if the project has one, otherwise nothing.
+  if (logoImg) {
+    const h = 22;
+    const w = (h * logoImg.width) / logoImg.height;
+    page.drawImage(logoImg, { x: MARGIN, y: y - h + 6, width: w, height: h });
+    y -= 30;
   }
+  drawLines(wrapText(cleanPdfText(title), bold, 20, CONTENT_WIDTH), 20, bold, INK, 6);
   y -= 8;
   page.drawLine({
     start: { x: MARGIN, y },
@@ -247,10 +264,12 @@ export async function generatePdf({
 export async function generateDocx({
   title,
   content,
-  projectName,
-  agentName,
+  logoUrl,
+  accentColor,
 }: DocumentInput): Promise<Buffer> {
   const blocks = parseMarkdownToBlocks(content);
+  const accentHex = normalizeHex(accentColor) ?? NEUTRAL_ACCENT_HEX;
+  const logo = logoUrl ? await fetchImageForExport(logoUrl) : null;
   const children: (Paragraph | Table)[] = [];
 
   children.push(
@@ -258,21 +277,10 @@ export async function generateDocx({
       heading: HeadingLevel.TITLE,
       children: [new TextRun({ text: title, color: "111111" })],
       border: {
-        bottom: { style: BorderStyle.SINGLE, size: 6, color: DOCX_ACCENT, space: 8 },
+        bottom: { style: BorderStyle.SINGLE, size: 6, color: accentHex, space: 8 },
       },
     }),
   );
-  const subtitle = [agentName && `by ${agentName}`, projectName]
-    .filter(Boolean)
-    .join(" — ");
-  if (subtitle) {
-    children.push(
-      new Paragraph({
-        children: [new TextRun({ text: subtitle, italics: true, color: "666666" })],
-        spacing: { before: 120, after: 200 },
-      })
-    );
-  }
 
   const headingLevel = {
     1: HeadingLevel.HEADING_1,
@@ -347,11 +355,10 @@ export async function generateDocx({
   }
 
   const doc = new Document({
-    creator: agentName ?? "CoreOS",
     title,
     sections: [
       {
-        headers: { default: docxHeader() },
+        headers: { default: docxHeader(logo) },
         footers: { default: docxFooter() },
         children,
       },

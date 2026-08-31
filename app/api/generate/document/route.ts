@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { getBrandKit } from "@/lib/projects";
 import { generateDocx, generatePdf, slugifyFilename } from "@/lib/documentGenerators";
 
-// Auth is already enforced by middleware for all /api/* routes; this route
-// needs no user-specific data, so it doesn't repeat the check.
+// Auth is already enforced by middleware for all /api/* routes.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const type: unknown = body?.type;
   const title: unknown = body?.title;
   const content: unknown = body?.content;
-  const projectName: unknown = body?.projectName;
-  const agentName: unknown = body?.agentName;
+  const projectId: unknown = body?.projectId;
 
   if (type !== "pdf" && type !== "docx") {
     return NextResponse.json({ error: "type must be 'pdf' or 'docx'" }, { status: 400 });
@@ -18,13 +18,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "title and content are required" }, { status: 400 });
   }
 
-  const input = {
-    title,
-    content,
-    projectName: typeof projectName === "string" ? projectName : undefined,
-    agentName: typeof agentName === "string" ? agentName : undefined,
-  };
+  let brand: { logoUrl?: string; accentColor?: string } = {};
+  if (typeof projectId === "string" && projectId) {
+    brand = await getBrandKit(createClient(), projectId);
+  }
 
+  const input = { title, content, ...brand };
   const filename = slugifyFilename(title);
 
   if (type === "pdf") {
