@@ -237,12 +237,13 @@ const MODE_ADDENDUM: Record<ChatMode, string> = {
     "\n\n---\nTreat this as a research task. Use search to check current facts and multiple sources before answering. Cite what you find. Lay out trade-offs and reasoning explicitly rather than just giving a conclusion. It's fine to take longer to be right.",
 };
 
-// Applied to every agent — there is no other shared guardrail layer.
+// Applied to every agent - there is no other shared guardrail layer.
 // Stops an agent inventing a specific, checkable claim (a team member, a
 // role, a shipped feature, a commitment) inside something the user is about
-// to send to a real person.
+// to send to a real person, and bans the em dash outright.
 const GUARDRAILS =
-  "\n\n---\nNever assert a specific fact about the user's team, role, technical capability, or product feature in something they're about to send to a real person, unless that fact is already confirmed in their agency or client context. If completing the request would require a claim like that, don't invent it - ask the user to confirm it first.";
+  "\n\n---\nNever assert a specific fact about the user's team, role, technical capability, or product feature in something they're about to send to a real person, unless that fact is already confirmed in their agency or client context. If completing the request would require a claim like that, don't invent it - ask the user to confirm it first." +
+  "\n\nNever use an em dash (—) or an en dash (–) anywhere in your output. Use a comma, a colon, or a full stop instead, or a spaced hyphen ( - ) if you need a break in a sentence. This applies to every reply, including scripts, documents, and drafts.";
 
 // Returns null for an unknown agentId (route.ts turns that into a 404).
 export function buildSystemPrompt(agentId: string, mode: ChatMode): string | null {

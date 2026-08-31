@@ -12,7 +12,7 @@ export type AgentSection = {
   agents: Agent[];
 };
 
-// ids are stable (used as the agent_id foreign key on stored conversations) —
+// ids are stable (used as the agent_id foreign key on stored conversations) -
 // only display names/order/emoji move when the roster is rebranded.
 export const agentSections: AgentSection[] = [
   {
@@ -20,12 +20,12 @@ export const agentSections: AgentSection[] = [
     title: "GROW",
     description: "Pipeline, outreach, and acquisition",
     agents: [
-      { id: "rex", name: "Rex", description: "Sales expert — closes deals and coaches the sales process", emoji: "🤝" },
-      { id: "sage", name: "Sage", description: "Marketing expert — strategy and client acquisition", emoji: "🧠" },
-      { id: "nova", name: "Mia", description: "Ads specialist — Meta ads and paid campaigns", emoji: "📢" },
-      { id: "kai", name: "Kai", description: "Lead gen — sources and qualifies new leads", emoji: "🎯" },
-      { id: "flynn", name: "Flynn", description: "Cold outreach — email and DM outreach systems", emoji: "📨" },
-      { id: "juno", name: "Juno", description: "Content expert — content strategy and personal branding", emoji: "🎬" },
+      { id: "rex", name: "Rex", description: "Sales expert - closes deals and coaches the sales process", emoji: "🤝" },
+      { id: "sage", name: "Sage", description: "Marketing expert - strategy and client acquisition", emoji: "🧠" },
+      { id: "nova", name: "Mia", description: "Ads specialist - Meta ads and paid campaigns", emoji: "📢" },
+      { id: "kai", name: "Kai", description: "Lead gen - sources and qualifies new leads", emoji: "🎯" },
+      { id: "flynn", name: "Flynn", description: "Cold outreach - email and DM outreach systems", emoji: "📨" },
+      { id: "juno", name: "Juno", description: "Content expert - content strategy and personal branding", emoji: "🎬" },
     ],
   },
   {
@@ -33,10 +33,10 @@ export const agentSections: AgentSection[] = [
     title: "CREATE",
     description: "Content, copy, and creative production",
     agents: [
-      { id: "axel", name: "Axel", description: "Systems architect — AI systems and tech architecture", emoji: "⚙️" },
-      { id: "iris", name: "Iris", description: "Design consultant — brand identity and visual creative", emoji: "🎨" },
-      { id: "echo", name: "Echo", description: "Copywriter — direct response and ad copy", emoji: "✍️" },
-      { id: "forge", name: "Forge", description: "Funnel builder — GHL funnels and landing pages", emoji: "🛠️" },
+      { id: "axel", name: "Axel", description: "Systems architect - AI systems and tech architecture", emoji: "⚙️" },
+      { id: "iris", name: "Iris", description: "Design consultant - brand identity and visual creative", emoji: "🎨" },
+      { id: "echo", name: "Echo", description: "Copywriter - direct response and ad copy", emoji: "✍️" },
+      { id: "forge", name: "Forge", description: "Funnel builder - GHL funnels and landing pages", emoji: "🛠️" },
     ],
   },
   {
@@ -44,21 +44,21 @@ export const agentSections: AgentSection[] = [
     title: "OPERATE",
     description: "Client ops, reporting, and delivery",
     agents: [
-      { id: "atlas", name: "Ava", description: "Business strategist — scaling and growth strategy", emoji: "🧭" },
-      { id: "vera", name: "Vera", description: "Hiring specialist — recruitment and team building", emoji: "🧑‍💼" },
-      { id: "lex", name: "Lex", description: "Legal assistant — compliance and contracts", emoji: "⚖️" },
-      { id: "cleo", name: "Cleo", description: "Client comms — retention and client relationships", emoji: "💬" },
-      { id: "zen", name: "Zen", description: "Mindset coach — performance and productivity", emoji: "🧘" },
+      { id: "atlas", name: "Ava", description: "Business strategist - scaling and growth strategy", emoji: "🧭" },
+      { id: "vera", name: "Vera", description: "Hiring specialist - recruitment and team building", emoji: "🧑‍💼" },
+      { id: "lex", name: "Lex", description: "Legal assistant - compliance and contracts", emoji: "⚖️" },
+      { id: "cleo", name: "Cleo", description: "Client comms - retention and client relationships", emoji: "💬" },
+      { id: "zen", name: "Zen", description: "Mindset coach - performance and productivity", emoji: "🧘" },
     ],
   },
 ];
 
-// The general assistant — not part of a GROW/CREATE/OPERATE section, always
+// The general assistant - not part of a GROW/CREATE/OPERATE section, always
 // available from the Dashboard's right panel.
 export const CORE_AGENT: Agent = {
   id: "core",
   name: "Core",
-  description: "General Assistant — navigates CoreOS, adds clients, routes you to the right specialist",
+  description: "General Assistant - navigates CoreOS, adds clients, routes you to the right specialist",
   emoji: "🧬",
 };
 
