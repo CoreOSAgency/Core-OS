@@ -1,11 +1,40 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export type ClientStatus = "lead" | "onboarding" | "active" | "paused" | "churned";
+
 export type Project = {
   id: string;
   name: string;
   description: string | null;
   created_at: string;
+  industry: string | null;
+  website_url: string | null;
+  primary_contact_name: string | null;
+  primary_contact_email: string | null;
+  status: ClientStatus;
+  archived_at: string | null;
 };
+
+// Every select of a project row goes through this so all callers get the
+// full shape — add a column here when the migration adds one.
+const PROJECT_COLUMNS =
+  "id, name, description, created_at, industry, website_url, primary_contact_name, primary_contact_email, status, archived_at";
+
+// Structured fields a caller may patch (name/description plus the Phase 1
+// client columns). Brand colours/tone/logo still go through project_context.
+export type ProjectUpdate = Partial<
+  Pick<
+    Project,
+    | "name"
+    | "description"
+    | "industry"
+    | "website_url"
+    | "primary_contact_name"
+    | "primary_contact_email"
+    | "status"
+    | "archived_at"
+  >
+>;
 
 export async function listProjects(
   supabase: SupabaseClient,
@@ -13,12 +42,12 @@ export async function listProjects(
 ): Promise<Project[]> {
   const { data, error } = await supabase
     .from("projects")
-    .select("id, name, description, created_at")
+    .select(PROJECT_COLUMNS)
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as unknown as Project[];
 }
 
 export async function createProject(
@@ -30,27 +59,27 @@ export async function createProject(
   const { data, error } = await supabase
     .from("projects")
     .insert({ user_id: userId, name, description: description ?? null })
-    .select("id, name, description, created_at")
+    .select(PROJECT_COLUMNS)
     .single();
 
   if (error) throw error;
-  return data;
+  return data as unknown as Project;
 }
 
 export async function updateProject(
   supabase: SupabaseClient,
   projectId: string,
-  updates: { name?: string; description?: string }
+  updates: ProjectUpdate
 ): Promise<Project> {
   const { data, error } = await supabase
     .from("projects")
     .update(updates)
     .eq("id", projectId)
-    .select("id, name, description, created_at")
+    .select(PROJECT_COLUMNS)
     .single();
 
   if (error) throw error;
-  return data;
+  return data as unknown as Project;
 }
 
 export async function getProjectContext(
