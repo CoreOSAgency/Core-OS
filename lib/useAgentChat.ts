@@ -57,12 +57,17 @@ export function useAgentChat({
   projectId,
   projectName,
   driveConnected,
+  groupConversationId,
 }: {
   agent: Agent | null;
   projectId: string | null;
   projectName: string | null;
   driveConnected: boolean;
+  // When set, this hook drives a group chat: that one conversation, its
+  // participants, no "resume the agent's latest 1:1" behaviour.
+  groupConversationId?: string | null;
 }) {
+  const isGroup = !!groupConversationId;
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [mode, setModeState] = useState<ChatMode>("standard");
   // Multi-agent: `participants` is everyone in the thread; `activeAgent` is
@@ -115,6 +120,12 @@ export function useAgentChat({
     setActiveAgent(agent);
     setParticipants(agent ? [agent] : []);
 
+    if (groupConversationId) {
+      setLoadingChat(true);
+      loadConversation(groupConversationId).finally(() => setLoadingChat(false));
+      return;
+    }
+
     if (!agent || !projectId) return;
 
     setLoadingChat(true);
@@ -127,7 +138,7 @@ export function useAgentChat({
       })
       .finally(() => setLoadingChat(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agent?.id, projectId]);
+  }, [agent?.id, projectId, groupConversationId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -181,6 +192,7 @@ export function useAgentChat({
   }
 
   function startNewChat() {
+    if (isGroup) return; // a group chat is its own thread
     setMessages([]);
     setConversationId(null);
     setShowHistory(false);
@@ -188,7 +200,7 @@ export function useAgentChat({
     setParticipants(agent ? [agent] : []);
   }
 
-  // Bring another agent into the current thread and route the next message to
+  // GROUP ONLY: add an agent to this group and route the next message to
   // them. Nothing is sent until the user writes and submits it.
   async function addParticipant(next: Agent) {
     setParticipants((prev) =>
@@ -200,10 +212,51 @@ export function useAgentChat({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agentId: next.id }),
-      }).catch(() => {
-        // best-effort — the server also records participants when an agent answers
-      });
+      }).catch(() => {});
     }
+  }
+
+  // GROUP ONLY: remove an agent. The server refuses to leave a group empty.
+  async function removeParticipant(target: Agent) {
+    if (!conversationId) return;
+    const res = await fetch(`/api/conversations/${conversationId}/participants`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId: target.id }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data?.error ?? "Couldn't remove that agent");
+      return;
+    }
+    const kept: Agent[] = (data.participants as string[])
+      .map((id) => findAgent(id))
+      .filter((a): a is Agent => !!a);
+    setParticipants(kept);
+    setActiveAgent((prev) =>
+      prev && kept.some((k) => k.id === prev.id) ? prev : kept[0] ?? null
+    );
+  }
+
+  // 1:1 ONLY: fork the current thread into a new group chat that also
+  // includes `withAgent`, seeded with this conversation's messages. Returns
+  // the new group's id so the caller can navigate to it. Sends nothing.
+  async function forkToGroup(withAgent: Agent): Promise<string | null> {
+    if (!projectId || !agent) return null;
+    const res = await fetch(`/api/projects/${projectId}/groups`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agentIds: [agent.id, withAgent.id],
+        seedFromConversationId: conversationId ?? undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.conversation?.id) {
+      setError(data?.error ?? "Couldn't start that group chat");
+      return null;
+    }
+    return data.conversation.id as string;
   }
 
   async function sendMessage(text: string) {
@@ -366,10 +419,13 @@ export function useAgentChat({
     messages,
     mode,
     setMode,
+    isGroup,
     participants,
     activeAgent,
     setActiveAgent,
     addParticipant,
+    removeParticipant,
+    forkToGroup,
     conversationId,
     showHistory,
     setShowHistory,

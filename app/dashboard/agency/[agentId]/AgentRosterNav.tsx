@@ -1,20 +1,36 @@
 "use client";
 
 import type { Agent } from "@/lib/agents";
+import type { Conversation } from "@/lib/conversations";
 import AgentRosterList from "../../AgentRosterList";
 
-// Panel 2 on the agent chat page — the full roster, always visible, so
-// switching agents never means going back to the dashboard first.
+// Panel 2 on the agent chat page - the full roster plus group chats, always
+// visible, so switching never means going back to the dashboard first.
 export default function AgentRosterNav({
   selectedAgentId,
   onSelectAgent,
+  groups,
+  activeGroupId,
+  onSelectGroup,
+  onNewGroup,
 }: {
   selectedAgentId: string | null;
   onSelectAgent: (agent: Agent) => void;
+  groups?: Conversation[];
+  activeGroupId?: string | null;
+  onSelectGroup?: (id: string) => void;
+  onNewGroup?: () => void;
 }) {
   return (
     <nav className="flex h-full min-h-0 w-[200px] shrink-0 flex-col overflow-y-auto border-r border-white/5 bg-core-nav px-2 py-4">
-      <AgentRosterList selectedAgentId={selectedAgentId} onSelectAgent={onSelectAgent} />
+      <AgentRosterList
+        selectedAgentId={selectedAgentId}
+        onSelectAgent={onSelectAgent}
+        groups={groups}
+        activeGroupId={activeGroupId}
+        onSelectGroup={onSelectGroup}
+        onNewGroup={onNewGroup}
+      />
     </nav>
   );
 }

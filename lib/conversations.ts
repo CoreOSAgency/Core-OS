@@ -1,11 +1,32 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { groupName } from "@/lib/agents";
 
 export type Conversation = {
   id: string;
   title: string | null;
   updated_at: string;
+  kind: "agent" | "group";
   participant_agent_ids: string[];
 };
+
+const CONV_SELECT = "id, title, updated_at, kind, conversation_participants(agent_id)";
+
+function mapConversation(row: unknown): Conversation {
+  const r = row as {
+    id: string;
+    title: string | null;
+    updated_at: string;
+    kind?: "agent" | "group";
+    conversation_participants: { agent_id: string }[] | null;
+  };
+  return {
+    id: r.id,
+    title: r.title,
+    updated_at: r.updated_at,
+    kind: r.kind ?? "agent",
+    participant_agent_ids: (r.conversation_participants ?? []).map((p) => p.agent_id),
+  };
+}
 
 export type GroundingSource = { title: string; url: string };
 
@@ -28,26 +49,42 @@ export async function listConversations(
 ): Promise<Conversation[]> {
   const { data, error } = await supabase
     .from("conversations")
-    .select("id, title, updated_at, conversation_participants(agent_id)")
+    .select(CONV_SELECT)
     .eq("project_id", projectId)
     .eq("agent_id", agentId)
+    .eq("kind", "agent")
     .order("updated_at", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []).map((row) => {
-    const r = row as unknown as {
-      id: string;
-      title: string | null;
-      updated_at: string;
-      conversation_participants: { agent_id: string }[] | null;
-    };
-    return {
-      id: r.id,
-      title: r.title,
-      updated_at: r.updated_at,
-      participant_agent_ids: (r.conversation_participants ?? []).map((p) => p.agent_id),
-    };
-  });
+  return (data ?? []).map(mapConversation);
+}
+
+// Group chats for a project - the "GROUP CHATS" section of the agent nav.
+export async function listGroupConversations(
+  supabase: SupabaseClient,
+  projectId: string
+): Promise<Conversation[]> {
+  const { data, error } = await supabase
+    .from("conversations")
+    .select(CONV_SELECT)
+    .eq("project_id", projectId)
+    .eq("kind", "group")
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapConversation);
+}
+
+export async function getConversation(
+  supabase: SupabaseClient,
+  id: string
+): Promise<Conversation | null> {
+  const { data, error } = await supabase
+    .from("conversations")
+    .select(CONV_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapConversation(data) : null;
 }
 
 export async function createConversation(
@@ -57,15 +94,96 @@ export async function createConversation(
 ): Promise<Conversation> {
   const { data, error } = await supabase
     .from("conversations")
-    .insert({ project_id: projectId, agent_id: agentId })
+    .insert({ project_id: projectId, agent_id: agentId, kind: "agent" })
     .select("id, title, updated_at")
     .single();
 
   if (error) throw error;
-  // The starting agent becomes the first participant; route.ts also upserts
-  // this, but doing it here keeps a freshly created conversation consistent.
   await addParticipant(supabase, data.id, agentId);
-  return { ...data, participant_agent_ids: [agentId] };
+  return { ...data, kind: "agent", participant_agent_ids: [agentId] };
+}
+
+// A named multi-agent room. Optionally seeded with a copy of another
+// conversation's messages so a handoff carries its context.
+export async function createGroupConversation(
+  supabase: SupabaseClient,
+  projectId: string,
+  agentIds: string[],
+  seedFromConversationId?: string
+): Promise<Conversation> {
+  const { data, error } = await supabase
+    .from("conversations")
+    .insert({
+      project_id: projectId,
+      agent_id: null,
+      kind: "group",
+      title: groupName(agentIds),
+    })
+    .select("id, title, updated_at")
+    .single();
+  if (error) throw error;
+
+  for (const agentId of agentIds) {
+    await addParticipant(supabase, data.id, agentId);
+  }
+
+  if (seedFromConversationId) {
+    const seed = await getMessages(supabase, seedFromConversationId);
+    if (seed.length > 0) {
+      const { error: seedErr } = await supabase.from("messages").insert(
+        seed.map((m) => ({
+          conversation_id: data.id,
+          role: m.role,
+          content: m.content,
+          context_saved: m.context_saved,
+          is_deliverable: m.is_deliverable,
+          mode: m.mode,
+          model_used: m.model_used,
+          thinking_level: m.thinking_level,
+          grounding_sources: m.grounding_sources,
+          agent_id: m.agent_id,
+        }))
+      );
+      if (seedErr) throw seedErr;
+    }
+  }
+
+  return { ...data, kind: "group", participant_agent_ids: [...agentIds] };
+}
+
+// Removes an agent from a group. Refuses to leave a group empty.
+export async function removeParticipant(
+  supabase: SupabaseClient,
+  conversationId: string,
+  agentId: string
+): Promise<string[]> {
+  const current = await listParticipants(supabase, conversationId);
+  if (current.length <= 1) {
+    throw new Error("A group chat needs at least one agent");
+  }
+  const { error } = await supabase
+    .from("conversation_participants")
+    .delete()
+    .eq("conversation_id", conversationId)
+    .eq("agent_id", agentId);
+  if (error) throw error;
+  const next = current.filter((id) => id !== agentId);
+  await renameGroupToParticipants(supabase, conversationId, next);
+  return next;
+}
+
+// Keeps a group's auto-name in sync with its membership.
+export async function renameGroupToParticipants(
+  supabase: SupabaseClient,
+  conversationId: string,
+  agentIds?: string[]
+): Promise<void> {
+  const ids = agentIds ?? (await listParticipants(supabase, conversationId));
+  await supabase
+    .from("conversations")
+    .update({ title: groupName(ids) })
+    .eq("id", conversationId)
+    .eq("kind", "group");
 }
 
 export async function listParticipants(

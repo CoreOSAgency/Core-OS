@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AGENT_PROMPTS, type Agent } from "@/lib/agents";
+import type { Conversation } from "@/lib/conversations";
 import { useActiveProject } from "@/lib/useActiveProject";
 import { useAgentChat, type ConversationSummary } from "@/lib/useAgentChat";
 import { LAST_AGENT_KEY } from "@/lib/localStorageKeys";
@@ -26,8 +27,43 @@ export default function AgentChatShell({
   const projectId = project?.id ?? null;
   const [driveConnected, setDriveConnected] = useState(false);
   const [history, setHistory] = useState<ConversationSummary[] | null>(null);
+  const [groups, setGroups] = useState<Conversation[]>([]);
 
   const chat = useAgentChat({ agent, projectId, projectName: project?.name ?? null, driveConnected });
+
+  const refreshGroups = useCallback(() => {
+    if (!projectId) return;
+    fetch(`/api/projects/${projectId}/groups`)
+      .then((r) => r.json())
+      .then((d: { conversations?: Conversation[] }) => setGroups(d.conversations ?? []));
+  }, [projectId]);
+
+  useEffect(refreshGroups, [refreshGroups]);
+
+  async function startGroupWith(next: Agent) {
+    const id = await chat.forkToGroup(next);
+    if (id) {
+      refreshGroups();
+      router.push(`/dashboard/groups/${id}`);
+    }
+  }
+
+  async function newGroup() {
+    if (!projectId) return;
+    const res = await fetch(`/api/projects/${projectId}/groups`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agentIds: [agent.id],
+        seedFromConversationId: chat.conversationId ?? undefined,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.conversation?.id) {
+      refreshGroups();
+      router.push(`/dashboard/groups/${data.conversation.id}`);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/integrations")
@@ -82,7 +118,13 @@ export default function AgentChatShell({
   return (
     <div className="flex h-screen bg-core-main">
       <IconSidebar active="agency" onNavigate={onNavigate} userEmail={userEmail} avatarUrl={avatarUrl} />
-      <AgentRosterNav selectedAgentId={agent.id} onSelectAgent={switchAgent} />
+      <AgentRosterNav
+        selectedAgentId={agent.id}
+        onSelectAgent={switchAgent}
+        groups={groups}
+        onSelectGroup={(id) => router.push(`/dashboard/groups/${id}`)}
+        onNewGroup={newGroup}
+      />
       <AgentHistoryNav
         agent={agent}
         history={history}
@@ -133,8 +175,8 @@ export default function AgentChatShell({
                       index={i}
                       agent={agent}
                       showAvatar
-                      multiAgent={chat.participants.length > 1}
-                      onAcceptHandoff={chat.addParticipant}
+                      multiAgent={false}
+                      onAcceptHandoff={startGroupWith}
                       driveConnected={driveConnected}
                       downloading={chat.downloading}
                       driveLinks={chat.driveLinks}
@@ -158,17 +200,20 @@ export default function AgentChatShell({
 
             <div className="mx-auto w-full max-w-3xl">
               <ChatComposer
-                agentName={chat.activeAgent?.name ?? agent.name}
+                agentName={agent.name}
                 input={chat.input}
                 onInputChange={chat.setInput}
                 onSubmit={chat.sendMessage}
                 sending={chat.sending}
                 mode={chat.mode}
                 onModeChange={chat.setMode}
+                isGroup={false}
                 participants={chat.participants}
                 activeAgentId={chat.activeAgent?.id}
                 onSelectAgent={chat.setActiveAgent}
                 onAddParticipant={chat.addParticipant}
+                onRemoveParticipant={chat.removeParticipant}
+                onMention={startGroupWith}
               />
             </div>
           </>

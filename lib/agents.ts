@@ -71,6 +71,14 @@ export function findAgent(agentId: string): Agent | null {
   return null;
 }
 
+// Default name for a group chat, e.g. "Rex, Juno & Echo".
+export function groupName(agentIds: string[]): string {
+  const names = agentIds.map((id) => findAgent(id)?.name).filter(Boolean) as string[];
+  if (names.length === 0) return "Group chat";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
+}
+
 // Four starting prompts per agent for the full chat page's empty state.
 export const AGENT_PROMPTS: Record<string, string[]> = {
   rex: [

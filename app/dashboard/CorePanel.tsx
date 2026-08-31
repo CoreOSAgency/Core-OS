@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CORE_AGENT } from "@/lib/agents";
+import { useRouter } from "next/navigation";
+import { CORE_AGENT, type Agent } from "@/lib/agents";
 import { relativeTime, useAgentChat } from "@/lib/useAgentChat";
 import ChatComposer from "./ChatComposer";
 import ChatMessage from "./ChatMessage";
@@ -26,7 +27,13 @@ export default function CorePanel({
   driveConnected: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const router = useRouter();
   const chat = useAgentChat({ agent: CORE_AGENT, projectId, projectName, driveConnected });
+
+  async function startGroupWith(next: Agent) {
+    const id = await chat.forkToGroup(next);
+    if (id) router.push(`/dashboard/groups/${id}`);
+  }
 
   if (collapsed) {
     return (
@@ -149,8 +156,8 @@ export default function CorePanel({
                 index={i}
                 agent={CORE_AGENT}
                 showAvatar
-                multiAgent={chat.participants.length > 1}
-                onAcceptHandoff={chat.addParticipant}
+                multiAgent={false}
+                onAcceptHandoff={startGroupWith}
                 driveConnected={driveConnected}
                 downloading={chat.downloading}
                 driveLinks={chat.driveLinks}
@@ -175,17 +182,20 @@ export default function CorePanel({
 
       {!chat.showHistory && (
         <ChatComposer
-          agentName={chat.activeAgent?.name ?? "Core"}
+          agentName="Core"
           input={chat.input}
           onInputChange={chat.setInput}
           onSubmit={chat.sendMessage}
           sending={chat.sending}
           mode={chat.mode}
           onModeChange={chat.setMode}
+          isGroup={false}
           participants={chat.participants}
           activeAgentId={chat.activeAgent?.id}
           onSelectAgent={chat.setActiveAgent}
           onAddParticipant={chat.addParticipant}
+          onRemoveParticipant={chat.removeParticipant}
+          onMention={startGroupWith}
         />
       )}
     </aside>

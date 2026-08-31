@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import type { Agent } from "@/lib/agents";
 import { relativeTime, useAgentChat } from "@/lib/useAgentChat";
 import ChatComposer from "./ChatComposer";
@@ -23,7 +24,13 @@ export default function ChatPanel({
   driveConnected: boolean;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const chat = useAgentChat({ agent, projectId, projectName, driveConnected });
+
+  async function startGroupWith(next: Agent) {
+    const id = await chat.forkToGroup(next);
+    if (id) router.push(`/dashboard/groups/${id}`);
+  }
 
   return (
     <aside className="flex h-full w-[380px] max-w-full shrink-0 flex-col border-l border-white/10 bg-core-nav">
@@ -119,8 +126,8 @@ export default function ChatPanel({
                     turn={turn}
                     index={i}
                     agent={agent}
-                    multiAgent={chat.participants.length > 1}
-                    onAcceptHandoff={chat.addParticipant}
+                    multiAgent={false}
+                    onAcceptHandoff={startGroupWith}
                     driveConnected={driveConnected}
                     downloading={chat.downloading}
                     driveLinks={chat.driveLinks}
@@ -145,17 +152,20 @@ export default function ChatPanel({
 
             {!chat.showHistory && (
               <ChatComposer
-                agentName={chat.activeAgent?.name ?? agent.name}
+                agentName={agent.name}
                 input={chat.input}
                 onInputChange={chat.setInput}
                 onSubmit={chat.sendMessage}
                 sending={chat.sending}
                 mode={chat.mode}
                 onModeChange={chat.setMode}
+                isGroup={false}
                 participants={chat.participants}
                 activeAgentId={chat.activeAgent?.id}
                 onSelectAgent={chat.setActiveAgent}
                 onAddParticipant={chat.addParticipant}
+                onRemoveParticipant={chat.removeParticipant}
+                onMention={startGroupWith}
               />
             )}
           </>
