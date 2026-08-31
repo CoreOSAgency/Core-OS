@@ -4,7 +4,12 @@ import { getBrandKit } from "@/lib/projects";
 import { normalizeHex } from "@/lib/imageForExport";
 import { renderPptxFromModel } from "@/lib/presentationGenerator";
 import { buildDeckModel, applyQaFixes, type SlideImage, type QaIssue } from "@/lib/deckModel";
-import { screenshotContentSlides, reviewSlideShots, qaNotesSentence } from "@/lib/deckQa";
+import {
+  screenshotContentSlides,
+  reviewSlideShots,
+  rawReviewSlideShots,
+  qaNotesSentence,
+} from "@/lib/deckQa";
 import { slugifyFilename } from "@/lib/documentGenerators";
 
 // Headless Chrome (QA path) needs the Node runtime and headroom for a render
@@ -102,6 +107,23 @@ export async function POST(request: Request) {
   }
 
   let model = await buildDeckModel({ title, slides, slideImages, ...brand });
+
+  // ponytail: temporary QA introspection - remove once the vision pass is dialed in.
+  if (body?.debugQa === true && key) {
+    try {
+      const shots = await screenshotContentSlides(model);
+      const raw = await rawReviewSlideShots(shots, key);
+      return NextResponse.json({
+        slideCount: model.slides.length,
+        shotSizes: shots.map((s) => s.length),
+        bodyFontPts: model.slides.map((s) => s.bodyFontPt),
+        firstShot: shots[0]?.slice(0, 120) ?? null,
+        rawQaResponse: raw,
+      });
+    } catch (e) {
+      return NextResponse.json({ error: String(e) }, { status: 500 });
+    }
+  }
 
   // Optional visual QA: screenshot an HTML mirror of the same model, let a
   // vision model flag overflow/overlap/contrast, apply ONE deterministic fix

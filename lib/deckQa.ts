@@ -64,13 +64,21 @@ export async function reviewSlideShots(
   shots: string[],
   key: string,
 ): Promise<QaIssue[]> {
+  return parseQaIssues(await rawReviewSlideShots(shots, key));
+}
+
+// Same call, raw model text - for the ?debug path only.
+export async function rawReviewSlideShots(
+  shots: string[],
+  key: string,
+): Promise<string> {
   const parts: Array<Record<string, unknown>> = [];
   shots.forEach((data, i) => {
     if (!data) return;
     parts.push({ text: `Slide ${i + 1}:` });
     parts.push({ inline_data: { mime_type: "image/png", data } });
   });
-  if (parts.length === 0) return [];
+  if (parts.length === 0) return "[]";
   parts.push({ text: "Return the JSON array now." });
 
   const res = await fetch(
@@ -88,9 +96,9 @@ export async function reviewSlideShots(
   );
   if (!res.ok) throw new Error(`QA model ${res.status}`);
   const json = await res.json();
-  const text: string =
-    json?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-  return parseQaIssues(text);
+  return (
+    json?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? ""
+  );
 }
 
 export function parseQaIssues(text: string): QaIssue[] {
