@@ -289,7 +289,7 @@ export default function WorkflowsPage() {
           <button
             onClick={save}
             disabled={saving}
-            className="rounded-lg bg-core-purple px-3 py-1.5 text-sm font-medium text-white hover:bg-core-purple/80 disabled:opacity-50"
+            className="rounded-lg bg-core-purple px-3 py-1.5 text-sm font-medium text-[#04170d] hover:bg-core-purple/80 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>

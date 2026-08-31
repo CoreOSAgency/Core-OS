@@ -89,7 +89,7 @@ export default function OnboardingWizard({
           <div key={label} className="flex flex-1 items-center gap-2">
             <div
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
-                i <= step ? "bg-core-purple text-white" : "bg-neutral-800 text-neutral-500"
+                i <= step ? "bg-core-purple text-[#04170d]" : "bg-neutral-800 text-neutral-500"
               }`}
             >
               {i + 1}
@@ -223,7 +223,7 @@ export default function OnboardingWizard({
           type="button"
           onClick={next}
           disabled={submitting || (step === 0 && !agencyName.trim())}
-          className="ml-auto rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-white hover:bg-core-purple disabled:cursor-not-allowed disabled:opacity-60"
+          className="ml-auto rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-[#04170d] hover:bg-core-purple disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? "Setting up…" : step === STEPS.length - 1 ? "Finish setup" : "Next"}
         </button>

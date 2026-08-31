@@ -115,7 +115,7 @@ export default function ChatMessage({
       )}
       <div
         className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-          isUser ? "bg-core-purple text-white" : "bg-core-card text-neutral-100"
+          isUser ? "bg-core-teal text-white" : "bg-core-card text-neutral-100"
         }`}
       >
         {turn.role === "model" ? (

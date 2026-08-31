@@ -94,7 +94,7 @@ export default function ProjectMemoryPanel({
           <button
             type="submit"
             disabled={importing || !importUrl.trim()}
-            className="whitespace-nowrap rounded-lg bg-core-purple px-3 py-2 text-sm font-medium text-white hover:bg-core-purple disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
+            className="whitespace-nowrap rounded-lg bg-core-purple px-3 py-2 text-sm font-medium text-[#04170d] hover:bg-core-purple disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
           >
             {importing ? "Importing…" : "Import"}
           </button>
@@ -151,7 +151,7 @@ export default function ProjectMemoryPanel({
                   />
                   <button
                     onClick={() => saveEdit(key)}
-                    className="rounded bg-core-purple px-2 py-1 text-xs font-medium text-white hover:bg-core-purple"
+                    className="rounded bg-core-purple px-2 py-1 text-xs font-medium text-[#04170d] hover:bg-core-purple"
                   >
                     Save
                   </button>

@@ -10,7 +10,7 @@ function SubmitButton({ label }: { label: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded-lg bg-core-purple px-4 py-2.5 font-medium text-white transition hover:bg-core-purple disabled:cursor-not-allowed disabled:opacity-60"
+      className="w-full rounded-lg bg-core-purple px-4 py-2.5 font-medium text-[#04170d] transition hover:bg-core-purple disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Please wait…" : label}
     </button>
@@ -26,7 +26,9 @@ export default function LoginForm() {
   );
 
   return (
-    <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-xl">
+    <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-core-card/80 shadow-xl">
+      <div className="sunbird-band h-1 w-full" />
+      <div className="p-8">
       <h1 className="text-xl font-semibold text-neutral-100">
         {mode === "sign-in" ? "Sign in to CoreOS" : "Create your CoreOS account"}
       </h1>
@@ -86,6 +88,7 @@ export default function LoginForm() {
           ? "Don't have an account? Sign up"
           : "Already have an account? Sign in"}
       </button>
+      </div>
     </div>
   );
 }

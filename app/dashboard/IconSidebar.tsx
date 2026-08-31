@@ -169,12 +169,12 @@ export default function IconSidebar({
   const initial = userEmail.trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <nav className="flex h-full w-[50px] shrink-0 flex-col items-center justify-between border-r border-white/5 bg-core-icon py-3">
+    <nav className="iridescent-rail flex h-full w-[50px] shrink-0 flex-col items-center justify-between border-r border-white/5 py-3">
       <div className="flex flex-col items-center gap-2">
         <Link
           href="/dashboard"
           title="CoreOS"
-          className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-core-purple text-[10px] font-bold tracking-tight text-white"
+          className="sunbird-band mb-2 flex h-8 w-8 items-center justify-center rounded-lg text-[10px] font-bold tracking-tight text-[#04170d] shadow-lg"
         >
           OSX
         </Link>

@@ -4,8 +4,8 @@ import Link from "next/link";
 import type { Project } from "@/lib/projects";
 
 const STATUS_TONE: Record<string, string> = {
-  lead: "text-sky-400",
-  onboarding: "text-amber-400",
+  lead: "text-core-teal",
+  onboarding: "text-core-amber",
   active: "text-core-green",
   paused: "text-neutral-400",
   churned: "text-core-scarlet",
@@ -26,7 +26,7 @@ export default function ClientsView({
         <h2 className="text-lg font-semibold text-neutral-100">Clients</h2>
         <Link
           href="/dashboard/clients/new"
-          className="rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-white hover:bg-core-purple/80"
+          className="rounded-lg bg-core-purple px-4 py-2 text-sm font-medium text-[#04170d] hover:bg-core-purple/80"
         >
           + Add client
         </Link>

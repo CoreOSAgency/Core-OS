@@ -110,7 +110,7 @@ function StatCard({
           />
           <button
             onClick={onSave}
-            className="shrink-0 rounded bg-core-purple px-2 py-1 text-xs font-medium text-white hover:bg-core-purple/80"
+            className="shrink-0 rounded bg-core-purple px-2 py-1 text-xs font-medium text-[#04170d] hover:bg-core-purple/80"
           >
             Save
           </button>
@@ -260,7 +260,7 @@ export default function AgencyOverview({
               <button
                 onClick={scanForBrandIdentity}
                 disabled={scanning || !scanUrl.trim()}
-                className="shrink-0 rounded-lg bg-core-purple px-3 py-1.5 text-xs font-medium text-white hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:opacity-50"
+                className="shrink-0 rounded-lg bg-core-purple px-3 py-1.5 text-xs font-medium text-[#04170d] hover:bg-core-purple/80 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {scanning ? "Scanning…" : "Scan for brand identity"}
               </button>
@@ -334,7 +334,7 @@ export default function AgencyOverview({
                 />
                 <button
                   onClick={() => saveEdit("brand_tone")}
-                  className="rounded bg-core-purple px-2 py-1 text-xs font-medium text-white hover:bg-core-purple/80"
+                  className="rounded bg-core-purple px-2 py-1 text-xs font-medium text-[#04170d] hover:bg-core-purple/80"
                 >
                   Save
                 </button>
@@ -406,7 +406,7 @@ export default function AgencyOverview({
                           )}
                           <button
                             onClick={() => saveEdit(key)}
-                            className="shrink-0 rounded bg-core-purple px-2 py-1 text-xs font-medium text-white hover:bg-core-purple/80"
+                            className="shrink-0 rounded bg-core-purple px-2 py-1 text-xs font-medium text-[#04170d] hover:bg-core-purple/80"
                           >
                             Save
                           </button>
