@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getBrandKit } from "@/lib/projects";
 import { normalizeHex } from "@/lib/imageForExport";
@@ -6,21 +8,21 @@ import { buildDeckModel, type SlideImage } from "@/lib/deckModel";
 import { createDeck } from "@/lib/decks";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const IMAGE_MODEL = "gemini-3.1-flash-lite-image";
 
 // One illustrative image for a slide. Fails open: returns null on any error
-// (rate limit, billing not enabled, model error) so the deck still builds.
+// (rate limit, model error) so the deck still builds without it.
 async function generateSlideImage(
   prompt: string,
   accent: string | undefined,
   key: string
 ): Promise<{ base64: string; mime: string } | null> {
   const styled =
-    `${prompt}. Clean, modern SaaS illustration style` +
-    (accent ? `, using #${accent} as the primary accent colour` : "") +
-    `, against a dark background, flat vector aesthetic, no text or lettering anywhere in the image.`;
+    `${prompt}. Polished modern editorial illustration, cinematic depth and lighting` +
+    (accent ? `, #${accent} as the dominant accent colour` : "") +
+    `, set against a dark background that fades to near-black at the edges. Absolutely no text, words, letters, numbers, charts, graphs, or logos anywhere in the image.`;
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${key}`,
@@ -50,6 +52,24 @@ async function generateSlideImage(
   } catch {
     return null;
   }
+}
+
+async function generateAndStore(
+  supabase: SupabaseClient,
+  { slideIndex, prompt }: { slideIndex: number; prompt: string },
+  accent: string | undefined,
+  key: string
+): Promise<SlideImage | null> {
+  const img = await generateSlideImage(prompt, accent, key);
+  if (!img) return null;
+  const ext = img.mime === "image/jpeg" ? "jpg" : "png";
+  const path = `${randomUUID()}.${ext}`;
+  const { error } = await supabase.storage
+    .from("deck-assets")
+    .upload(path, Buffer.from(img.base64, "base64"), { contentType: img.mime, upsert: false });
+  if (error) return null;
+  const { data } = supabase.storage.from("deck-assets").getPublicUrl(path);
+  return { slideIndex, url: data.publicUrl };
 }
 
 // Builds a deck, persists it, and returns a shareable link. The deck renders
@@ -93,16 +113,21 @@ export async function POST(request: Request) {
 
   const brand = await getBrandKit(supabase, projectId);
 
-  // Generate one image per marker. Failures degrade that slide to text-only.
-  const slideImages: SlideImage[] = [];
+  // Generate the slide images in parallel, upload each to the deck-assets
+  // bucket, and reference them by URL. Any that fail just leave their slide
+  // text-only.
   const key = process.env.GEMINI_API_KEY;
-  if (key && imagePrompts.length > 0) {
-    const accentHex = normalizeHex(brand.accentColor) ?? undefined;
-    for (const { slideIndex, prompt } of imagePrompts) {
-      const img = await generateSlideImage(prompt, accentHex, key);
-      if (img) slideImages.push({ slideIndex, base64: img.base64, mime: img.mime });
-    }
-  }
+  const accentHex = normalizeHex(brand.accentColor) ?? undefined;
+  const slideImages: SlideImage[] = key
+    ? (
+        await Promise.all(
+          imagePrompts
+            .filter((p) => p.slideIndex >= 1 && p.slideIndex <= slides.length)
+            .slice(0, 12)
+            .map((p) => generateAndStore(supabase, p, accentHex, key))
+        )
+      ).filter((x): x is SlideImage => x !== null)
+    : [];
 
   const model = await buildDeckModel({ title, slides, slideImages, ...brand });
 

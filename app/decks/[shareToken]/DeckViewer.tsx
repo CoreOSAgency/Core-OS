@@ -118,7 +118,7 @@ function Slide({
       {slide.image && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={slide.image.dataUrl}
+          src={slide.image.src}
           alt=""
           style={{
             position: "absolute",

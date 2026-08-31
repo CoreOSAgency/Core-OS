@@ -69,8 +69,9 @@ function bulletsFit(
   return usedPt <= boxHeightPt;
 }
 
-// One generated image, keyed to a slide by 1-indexed position.
-export type SlideImage = { slideIndex: number; base64: string; mime: string };
+// One generated image, keyed to a slide by 1-indexed position. Stored in the
+// deck-assets bucket; url is its public URL.
+export type SlideImage = { slideIndex: number; url: string };
 
 export type DeckModelInput = {
   title: string;
@@ -81,7 +82,7 @@ export type DeckModelInput = {
   slideImages?: SlideImage[];
 };
 
-export type ModelImage = { dataUrl: string; scale: number };
+export type ModelImage = { src: string; scale: number };
 
 export type ContentSlideModel = {
   heading: string;
@@ -133,7 +134,7 @@ export async function buildDeckModel(input: DeckModelInput): Promise<DeckModel> 
       bullets: slide.bullets,
       bodyFontPt: fitBodyFontSize(slide.bullets, bodyWidthIn, BOX.body.h),
       bodyWidthIn,
-      image: im ? { dataUrl: `data:${im.mime};base64,${im.base64}`, scale: 1 } : null,
+      image: im ? { src: im.url, scale: 1 } : null,
     };
   });
 

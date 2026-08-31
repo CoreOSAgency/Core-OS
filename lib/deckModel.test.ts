@@ -19,7 +19,7 @@ assert.ok(fitBodyFontSize(dense, 5.0, 3.7) < 16, "dense slide should shrink");
       { heading: "Intro", bullets: ["short"] },
       { heading: "Data", bullets: dense },
     ],
-    slideImages: [{ slideIndex: 1, base64: "AAAA", mime: "image/png" }],
+    slideImages: [{ slideIndex: 1, url: "https://cdn.example.com/a.png" }],
   });
   assert.equal(model.slides.length, 2);
   assert.equal(model.bg, "1A1A1A");
@@ -27,7 +27,7 @@ assert.ok(fitBodyFontSize(dense, 5.0, 3.7) < 16, "dense slide should shrink");
   assert.ok(model.slides[0].image, "slide 1 has an image");
   assert.equal(model.slides[0].bodyWidthIn, 5.0, "image slide uses split width");
   assert.equal(model.slides[1].bodyWidthIn, 8.8, "text-only slide uses full width");
-  assert.equal(model.slides[0].image!.dataUrl.slice(0, 22), "data:image/png;base64,");
+  assert.equal(model.slides[0].image!.src, "https://cdn.example.com/a.png");
 
   // No explicit background -> branded gradient, not flat grey.
   assert.equal(model.bg, "1A1A1A");

@@ -54,7 +54,7 @@ export function renderMirrorHtml(
       <ul style="position:absolute;left:${px(BOX.body.x)}px;top:${px(BOX.body.y)}px;width:${px(slide.bodyWidthIn)}px;height:${px(BOX.body.h)}px;margin:0;padding-left:22px;color:#${model.text};font-size:${slide.bodyFontPt}px;line-height:1.2;list-style:disc;${bodyExtra}">${bullets}</ul>
       ${
         slide.image
-          ? `<img src="${slide.image.dataUrl}" style="position:absolute;left:${px(BOX.image.x)}px;top:${px(BOX.image.y)}px;width:${px(BOX.image.w * slide.image.scale)}px;height:${px(BOX.image.h * slide.image.scale)}px;object-fit:contain;" />`
+          ? `<img src="${slide.image.src}" style="position:absolute;left:${px(BOX.image.x)}px;top:${px(BOX.image.y)}px;width:${px(BOX.image.w * slide.image.scale)}px;height:${px(BOX.image.h * slide.image.scale)}px;object-fit:contain;" />`
           : ""
       }
     </section>`);
