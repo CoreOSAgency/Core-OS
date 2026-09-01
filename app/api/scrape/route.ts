@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { createClient } from "@/lib/supabase/server";
-import { saveProjectContext } from "@/lib/projects";
+import { getProjectContext, saveProjectContext } from "@/lib/projects";
 
 // ponytail: colours come from a static HTML/CSS regex scan, not a rendered
 // DOM (that would need a headless browser like Puppeteer). Good enough to
@@ -23,6 +23,45 @@ function extractColours(html: string): string[] {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([hex]) => hex);
+}
+
+function toRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  const f = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(f, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function luminance(hex: string): number {
+  const [r, g, b] = toRgb(hex);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+function saturation(hex: string): number {
+  const [r, g, b] = toRgb(hex).map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  return max === 0 ? 0 : (max - min) / max;
+}
+
+// Guesses which detected colour plays which brand role: darkest genuinely-dark
+// colour is the background, the two most vivid mid-tone colours are primary and
+// accent. Rough, but it means a site scan actually populates the brand kit the
+// generators read - the user refines it in the Brand Identity panel.
+function pickBrandRoles(colours: string[]): {
+  primary_color?: string;
+  accent_color?: string;
+  background_color?: string;
+} {
+  const dark = colours
+    .filter((c) => luminance(c) < 0.16)
+    .sort((a, b) => luminance(a) - luminance(b));
+  const vivid = colours
+    .filter((c) => luminance(c) >= 0.16 && luminance(c) <= 0.9)
+    .sort((a, b) => saturation(b) - saturation(a));
+  return {
+    background_color: dark[0],
+    primary_color: vivid[0],
+    accent_color: vivid[1] ?? vivid[0],
+  };
 }
 
 function resolveUrl(maybeUrl: string | undefined, base: string): string | null {
@@ -105,16 +144,24 @@ export async function POST(request: Request) {
     meta("og:image") ||
     $('link[rel="icon"]').attr("href");
 
-  const extracted = {
+  const colours = extractColours(html);
+  const extracted: Record<string, string> = {
     company_name: companyName.trim(),
     company_description: companyDescription.trim(),
     tagline: tagline.trim(),
     logo_url: resolveUrl(logoCandidate, base) ?? "",
-    brand_colours: extractColours(html).join(", "),
+    brand_colours: colours.join(", "),
     website_url: base,
   };
 
   if (persist) {
+    // Fill primary/accent/background from the scan only where the user hasn't
+    // already set them - a manual choice in the Brand Identity panel wins.
+    const current = await getProjectContext(supabase, projectId as string);
+    const roles = pickBrandRoles(colours);
+    for (const [k, v] of Object.entries(roles)) {
+      if (v && !current[k]) extracted[k] = v;
+    }
     await saveProjectContext(supabase, projectId as string, extracted);
   }
 

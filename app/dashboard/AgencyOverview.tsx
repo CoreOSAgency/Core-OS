@@ -47,29 +47,51 @@ function EditIcon() {
   );
 }
 
-function ColorChip({ label, hex }: { label: string; hex: string }) {
-  const [copied, setCopied] = useState(false);
-  const valid = /^#[0-9a-fA-F]{3,6}$/.test(hex);
+// Editable brand colour. Clicking opens the OS colour picker; these three
+// keys (primary_color / accent_color / background_color) are what every deck
+// and document generator reads from the brand kit.
+function BrandColorField({
+  label,
+  value,
+  onSet,
+  onClear,
+}: {
+  label: string;
+  value?: string;
+  onSet: (hex: string) => void;
+  onClear: () => void;
+}) {
+  const valid = !!value && /^#[0-9a-fA-F]{6}$/.test(value);
   return (
-    <button
-      onClick={() => {
-        navigator.clipboard?.writeText(hex).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        });
-      }}
-      title="Click to copy"
-      className="flex flex-col items-start gap-1.5 rounded-lg border border-white/10 bg-core-main px-3 py-2 text-left hover:border-core-purple/50"
-    >
+    <label className="flex cursor-pointer flex-col items-start gap-1.5 rounded-lg border border-white/10 bg-core-main px-3 py-2 hover:border-core-purple/50">
       <span className="text-[10px] uppercase tracking-wide text-neutral-500">{label}</span>
       <span className="flex items-center gap-1.5 text-xs text-neutral-300">
         <span
           className="h-4 w-4 rounded-full border border-white/20"
-          style={{ backgroundColor: valid ? hex : "transparent" }}
+          style={{ backgroundColor: valid ? value : "transparent" }}
         />
-        {copied ? "Copied!" : hex}
+        {valid ? value : <span className="text-neutral-600">not set</span>}
+        {valid && (
+          <span
+            role="button"
+            title="Clear"
+            onClick={(e) => {
+              e.preventDefault();
+              onClear();
+            }}
+            className="ml-1 text-neutral-600 hover:text-core-scarlet"
+          >
+            ×
+          </span>
+        )}
       </span>
-    </button>
+      <input
+        type="color"
+        value={valid ? value : "#7c3aed"}
+        onChange={(e) => onSet(e.target.value)}
+        className="sr-only"
+      />
+    </label>
   );
 }
 
@@ -154,12 +176,23 @@ export default function AgencyOverview({
   }
 
   async function saveEdit(key: string) {
+    await saveEntry(key, editValue);
+    setEditingKey(null);
+  }
+
+  async function saveEntry(key: string, value: string) {
     await fetch(`/api/projects/${projectId}/context`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entries: { [key]: editValue } }),
+      body: JSON.stringify({ entries: { [key]: value } }),
     });
-    setEditingKey(null);
+    load();
+  }
+
+  async function clearEntry(key: string) {
+    await fetch(`/api/projects/${projectId}/context?key=${encodeURIComponent(key)}`, {
+      method: "DELETE",
+    });
     load();
   }
 
@@ -286,12 +319,30 @@ export default function AgencyOverview({
           )}
 
           <div className="mb-3">
-            <span className="text-xs text-neutral-500">Colors</span>
+            <span className="text-xs text-neutral-500">Colours</span>
             <div className="mt-1.5 flex flex-wrap gap-2">
-              <ColorChip label="Primary" hex={context.primary_color || "#7c3aed"} />
-              <ColorChip label="Accent" hex={context.accent_color || "#6366f1"} />
-              <ColorChip label="Background" hex={context.background_color || "#0d0d18"} />
+              <BrandColorField
+                label="Primary"
+                value={context.primary_color}
+                onSet={(hex) => saveEntry("primary_color", hex)}
+                onClear={() => clearEntry("primary_color")}
+              />
+              <BrandColorField
+                label="Accent"
+                value={context.accent_color}
+                onSet={(hex) => saveEntry("accent_color", hex)}
+                onClear={() => clearEntry("accent_color")}
+              />
+              <BrandColorField
+                label="Background"
+                value={context.background_color}
+                onSet={(hex) => saveEntry("background_color", hex)}
+                onClear={() => clearEntry("background_color")}
+              />
             </div>
+            <p className="mt-1.5 text-[11px] text-neutral-600">
+              Applied to every deck and document the agents generate for this client.
+            </p>
             {detectedColors.length > 0 && (
               <div className="mt-2">
                 <span className="text-[10px] uppercase tracking-wide text-neutral-600">
@@ -308,6 +359,18 @@ export default function AgencyOverview({
                         style={{ backgroundColor: hex }}
                       />
                       {hex}
+                      <span className="ml-1 flex gap-0.5">
+                        {(["primary", "accent", "background"] as const).map((role) => (
+                          <button
+                            key={role}
+                            onClick={() => saveEntry(`${role}_color`, hex)}
+                            title={`Set as ${role}`}
+                            className="rounded bg-white/5 px-1 text-[9px] font-medium uppercase text-neutral-400 hover:bg-core-purple/30 hover:text-core-purple"
+                          >
+                            {role[0]}
+                          </button>
+                        ))}
+                      </span>
                     </span>
                   ))}
                 </div>

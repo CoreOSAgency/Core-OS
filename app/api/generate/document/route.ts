@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "title and content are required" }, { status: 400 });
   }
 
-  let brand: { logoUrl?: string; accentColor?: string } = {};
+  let brand: { logoUrl?: string; accentColor?: string; backgroundColor?: string } = {};
   if (typeof projectId === "string" && projectId) {
     brand = await getBrandKit(createClient(), projectId);
   }
