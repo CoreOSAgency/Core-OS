@@ -102,7 +102,7 @@ When in doubt, leave it off. A great, thorough, well-formatted answer to a quest
 
  STEP 3 - build it like a real deck, not a document chopped into headings:
  - One idea per slide, and the "## " heading IS that idea, written as a claim, not a topic label. "Five-minute reply delays cut conversion by 80%" - not "The Speed Problem". (Only if that 80% is a confirmed fact - otherwise state the claim without the fake number.)
- - Few words on the slide. 3 to 5 bullets, each a short phrase (aim under 8 words), never a full sentence and never two. The presenter says the detail out loud; the slide is the anchor. If a point needs sentences to land, it does not go on the slide.
+ - 4 to 6 bullets per content slide, each a short line (roughly 6 to 12 words) - a crisp claim, not a full sentence and never two. The presenter says the rest out loud. Fewer than 4 lines only for a deliberate one-big-statement slide.
  - Give the deck an arc, usually 8 to 14 slides: a hook or the market shift; the problem made concrete; the cost of leaving it unsolved; the solution in one line; then 2 to 4 slides each showing one part of how it works; then proof (real results only); then why now; then the one next step.
  - Concrete over abstract on every line - a real number, a real name, or a specific situation. Vague filler ("seamless integration", "effortless scale") is not a bullet.
  - Vary the slides. Some are one bold line. Some are three phrases. Some are a before/after or us/them contrast. A deck of identical bullet lists is a weak deck.

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BOX,
-  BODY_FONT_SEQUENCE,
   PX_PER_IN,
   SLIDE_W_IN,
   SLIDE_H_IN,
@@ -102,17 +101,19 @@ function Slide({
           width: inPx(slide.bodyWidthIn),
           height: inPx(BOX.body.h),
           margin: 0,
-          paddingLeft: 22,
+          paddingLeft: 24,
           overflow: "hidden",
           fontSize: slide.bodyFontPt,
-          lineHeight: 1.2,
+          lineHeight: 1.3,
           listStyle: "disc",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          gap: "0.85em",
         }}
       >
         {slide.bullets.map((b, i) => (
-          <li key={i} style={{ marginBottom: 10 }}>
-            {b}
-          </li>
+          <li key={i}>{b}</li>
         ))}
       </ul>
       {slide.image && (
@@ -134,18 +135,27 @@ function Slide({
   );
 }
 
-// Steps each bullet list's font down through the sequence until it genuinely
-// fits its box - measured, not estimated. Runs on mount, slide change, resize.
+// Picks the LARGEST body size that still fits the box (measured, not
+// estimated), so a slide with only a few points fills its space instead of
+// floating tiny in the corner. Falls all the way down for dense slides.
+const BODY_FONT_STEPS_PX = [30, 27, 24, 21, 19, 17, 15, 13, 11];
+
 function fitBodies(els: (HTMLUListElement | null)[]) {
   for (const el of els) {
     if (!el) continue;
-    let chosen = BODY_FONT_SEQUENCE[0];
-    for (const pt of BODY_FONT_SEQUENCE) {
-      chosen = pt;
+    const boxHeightStyle = el.style.height; // "NNNpx" from the JSX
+    const target = el.clientHeight * 0.96;
+    el.style.height = "auto"; // measure natural content height
+    let chosen = BODY_FONT_STEPS_PX[BODY_FONT_STEPS_PX.length - 1];
+    for (const pt of BODY_FONT_STEPS_PX) {
       el.style.fontSize = `${pt}px`;
-      if (el.scrollHeight <= el.clientHeight) break;
+      if (el.scrollHeight <= target) {
+        chosen = pt;
+        break;
+      }
     }
     el.style.fontSize = `${chosen}px`;
+    el.style.height = boxHeightStyle;
   }
 }
 

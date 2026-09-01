@@ -14,9 +14,9 @@ export const PX_PER_IN = 96;
 export const BOX = {
   logo: { x: 0.6, y: 0.45, h: 0.55, maxW: 3 },
   titleText: { x: 0.6, y: 2.0, w: 8.8, h: 1.4, pt: 36 },
-  heading: { x: 0.6, y: 0.45, w: 8.8, h: 0.8, pt: 26 },
-  body: { x: 0.6, y: 1.5, wFull: 8.8, wSplit: 5.0, h: 3.7 },
-  image: { x: 5.9, y: 1.4, w: 3.5, h: 3.6 },
+  heading: { x: 0.6, y: 0.5, w: 8.8, h: 0.95, pt: 30 },
+  body: { x: 0.6, y: 1.65, wFull: 8.8, wSplit: 5.0, h: 3.65 },
+  image: { x: 5.9, y: 1.55, w: 3.5, h: 3.55 },
 } as const;
 
 export const DECK_BG_DEFAULT = "1A1A1A";
