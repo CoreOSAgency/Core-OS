@@ -1,15 +1,10 @@
 // Central mode -> Gemini request config. Nothing else should hardcode a
 // model string; import getModelConfig from here.
 //
-// ponytail: two things are gated behind Gemini billing, which is OFF on Kurt's
-// key (verified live 2026-08-31):
-//   1. Pro — `gemini-3.1-pro` (only `-preview` is listed) returns 429 `limit: 0`,
-//      so `deep` requests fall back to gemini-3.6-flash in practice.
-//   2. Google Search grounding — ANY request carrying the `google_search` tool
-//      429s on the free tier, even a trivial one. So `tools` is [] on every mode
-//      for now. The grounding code path (extractGroundingSources, the Sources UI,
-//      the grounding_sources column) all stay wired — re-add the tool entries
-//      below once the key has billing and it lights up end to end.
+// Gemini billing is ON as of 2026-09-01, so google_search grounding +
+// url_context are enabled on standard and deep. quick stays tool-free to keep
+// it fast. `deep` still uses gemini-3.1-pro-preview; if that 429s it falls back
+// to gemini-3.6-flash via fallbackModel.
 
 export type ChatMode = "quick" | "standard" | "deep";
 
@@ -32,14 +27,14 @@ const MODEL_CONFIG: Record<ChatMode, ModelConfig> = {
   standard: {
     model: "gemini-3.6-flash",
     thinkingLevel: "medium",
-    tools: [], // billing-gated: [{ type: "google_search" }]
+    tools: [{ type: "google_search" }, { type: "url_context" }],
     maxOutputTokens: 4096,
     fallbackModel: "gemini-3.5-flash-lite",
   },
   deep: {
     model: "gemini-3.1-pro-preview",
     thinkingLevel: "high",
-    tools: [], // billing-gated: [{ type: "google_search" }, { type: "url_context" }]
+    tools: [{ type: "google_search" }, { type: "url_context" }],
     maxOutputTokens: 8192,
     fallbackModel: "gemini-3.6-flash",
   },
