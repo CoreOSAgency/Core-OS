@@ -194,6 +194,7 @@ export default function AgentChatShell({
                       agentName={chat.activeAgent?.name ?? agent.name}
                       mode={chat.mode}
                       lastMessage={chat.messages[chat.messages.length - 1]?.text}
+                    activity={chat.streamActivity}
                     />
                   )}
                 </div>

@@ -22,6 +22,9 @@ import {
 } from "@/lib/projects";
 import { addParticipant, appendTurn, createConversation } from "@/lib/conversations";
 
+export const runtime = "nodejs";
+export const maxDuration = 120;
+
 type ChatTurn = {
   role: "user" | "model";
   text: string;
@@ -152,123 +155,188 @@ export async function POST(request: Request) {
   }
   const requestBody = JSON.stringify(geminiBody);
 
-  async function callGemini(model: string) {
-    const res = await fetch(
-      `${GEMINI_BASE}/${model}:generateContent?key=${key}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: requestBody,
+  // Streams the model in real time as Server-Sent Events. Event shapes:
+  //   {t:"text", v}         a chunk of the visible reply
+  //   {t:"search", v}       a web search query the model ran
+  //   {t:"read", v}         a source it pulled in
+  //   {t:"done", ...}       final: cleaned reply + persisted-turn metadata
+  //   {t:"error", v}        something failed
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (obj: unknown) =>
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+
+      let rawReply = "";
+      let lastGroundingChunk: unknown = null;
+      const seenReads = new Set<string>();
+      const seenSearches = new Set<string>();
+      let modelUsed = config.model;
+
+      // Reads one streamGenerateContent SSE response, emitting text/search/read
+      // events. Returns true if it produced any text.
+      async function pump(model: string): Promise<boolean> {
+        const res = await fetch(
+          `${GEMINI_BASE}/${model}:streamGenerateContent?alt=sse&key=${key}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: requestBody,
+          }
+        );
+        if (!res.ok || !res.body) {
+          const errJson = await res.json().catch(() => null);
+          throw new Error(errJson?.error?.message ?? `Gemini HTTP ${res.status}`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        let produced = false;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith("data:")) continue;
+            const payload = t.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
+            let chunk: {
+              candidates?: Array<{
+                content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+                groundingMetadata?: {
+                  webSearchQueries?: string[];
+                  groundingChunks?: Array<{ web?: { title?: string } }>;
+                };
+              }>;
+            };
+            try {
+              chunk = JSON.parse(payload);
+            } catch {
+              continue;
+            }
+            const cand = chunk.candidates?.[0];
+            for (const p of cand?.content?.parts ?? []) {
+              if (p.thought || typeof p.text !== "string" || !p.text) continue;
+              rawReply += p.text;
+              produced = true;
+              send({ t: "text", v: p.text });
+            }
+            const gm = cand?.groundingMetadata;
+            if (gm) {
+              lastGroundingChunk = chunk;
+              for (const q of gm.webSearchQueries ?? []) {
+                if (q && !seenSearches.has(q)) {
+                  seenSearches.add(q);
+                  send({ t: "search", v: q });
+                }
+              }
+              for (const c of gm.groundingChunks ?? []) {
+                const title = c?.web?.title;
+                if (title && !seenReads.has(title)) {
+                  seenReads.add(title);
+                  send({ t: "read", v: title });
+                }
+              }
+            }
+          }
+        }
+        return produced;
       }
-    );
-    const json = await res.json().catch(() => null);
-    return { ok: res.ok, status: res.status, json };
-  }
 
-  // Try the mode's model; on any failure retry once against the fallback so a
-  // bad/disabled model ID (e.g. Pro not enabled on the key) degrades instead
-  // of 500ing. model_used records which one actually answered.
-  let modelUsed = config.model;
-  let result: Awaited<ReturnType<typeof callGemini>>;
-  try {
-    result = await callGemini(config.model);
-    if (!result.ok) {
-      throw new Error(
-        result.json?.error?.message ?? `Gemini HTTP ${result.status}`
-      );
-    }
-  } catch (err) {
-    console.warn(
-      `[chat] ${config.model} failed, falling back to ${config.fallbackModel}`,
-      err
-    );
-    modelUsed = config.fallbackModel;
-    try {
-      result = await callGemini(config.fallbackModel);
-    } catch (err2) {
-      return NextResponse.json(
-        { error: err2 instanceof Error ? err2.message : "Gemini request failed" },
-        { status: 502 }
-      );
-    }
-  }
+      try {
+        try {
+          if (!(await pump(config.model))) throw new Error("empty response");
+        } catch (err) {
+          console.warn(
+            `[chat] ${config.model} stream failed, falling back to ${config.fallbackModel}`,
+            err
+          );
+          rawReply = "";
+          lastGroundingChunk = null;
+          modelUsed = config.fallbackModel;
+          await pump(config.fallbackModel);
+        }
 
-  const data = result.json;
+        if (!rawReply.trim()) {
+          send({ t: "error", v: "The model returned nothing. Try again." });
+          controller.close();
+          return;
+        }
 
-  if (!result.ok) {
-    return NextResponse.json(
-      { error: data?.error?.message ?? "Gemini request failed" },
-      { status: result.status || 502 }
-    );
-  }
+        const groundingSources = extractGroundingSources(lastGroundingChunk);
 
-  // Grounded replies can arrive split across several parts — join them all.
-  const parts: Array<{ text?: string }> =
-    data?.candidates?.[0]?.content?.parts ?? [];
-  const rawReply = parts.map((p) => p.text ?? "").join("").trim();
+        const { text: afterContext, entries } = extractContextBlock(rawReply.trim());
+        let contextSaved = false;
+        if (entries) {
+          await saveProjectContext(supabase, projectId, entries);
+          contextSaved = true;
+        }
+        const { text: afterDeliverable, isDeliverable } =
+          extractDeliverableFlag(afterContext);
+        const { text: afterHandoff, suggestedAgentId: rawSuggestion } =
+          extractHandoffSuggestion(afterDeliverable);
+        const suggestedAgentId =
+          rawSuggestion && rawSuggestion !== agentId && findAgent(rawSuggestion)
+            ? rawSuggestion
+            : null;
+        const { text: reply, images: slideImagePrompts } =
+          extractSlideImagePrompts(afterHandoff);
 
-  if (!rawReply) {
-    return NextResponse.json(
-      { error: "Gemini returned no response text" },
-      { status: 502 }
-    );
-  }
+        // The reply already streamed to the user - a persistence hiccup must
+        // not turn a good answer into an error. Save best-effort, still send
+        // "done" either way.
+        let activeConversationId: string | null =
+          typeof conversationId === "string" && conversationId ? conversationId : null;
+        try {
+          if (!activeConversationId) {
+            activeConversationId = (
+              await createConversation(supabase, projectId, agentId)
+            ).id;
+          }
+          await appendTurn(supabase, activeConversationId, message, reply, {
+            contextSaved,
+            isDeliverable,
+            mode,
+            modelUsed,
+            thinkingLevel: config.thinkingLevel,
+            groundingSources,
+            agentId,
+            attachments: storedAttachments,
+          });
+          await addParticipant(supabase, activeConversationId, agentId);
+        } catch (persistErr) {
+          console.error("[chat] persist failed after stream", persistErr);
+        }
 
-  const groundingSources = extractGroundingSources(data);
-
-  const { text: afterContext, entries } = extractContextBlock(rawReply);
-  let contextSaved = false;
-  if (entries) {
-    await saveProjectContext(supabase, projectId, entries);
-    contextSaved = true;
-  }
-
-  const { text: afterDeliverable, isDeliverable } =
-    extractDeliverableFlag(afterContext);
-
-  // A handoff suggestion only counts if it names a real agent that isn't the
-  // one who just answered.
-  const { text: afterHandoff, suggestedAgentId: rawSuggestion } =
-    extractHandoffSuggestion(afterDeliverable);
-  const suggestedAgentId =
-    rawSuggestion && rawSuggestion !== agentId && findAgent(rawSuggestion)
-      ? rawSuggestion
-      : null;
-
-  // Per-slide image requests for a deck - stripped from the visible text,
-  // handed to the presentation generator when the user downloads.
-  const { text: reply, images: slideImagePrompts } =
-    extractSlideImagePrompts(afterHandoff);
-
-  // Persist the turn. A conversation is created on first message in a
-  // fresh chat; the client tracks the id from here for the rest of it.
-  const activeConversationId =
-    typeof conversationId === "string" && conversationId
-      ? conversationId
-      : (await createConversation(supabase, projectId, agentId)).id;
-
-  await appendTurn(supabase, activeConversationId, message, reply, {
-    contextSaved,
-    isDeliverable,
-    mode,
-    modelUsed,
-    thinkingLevel: config.thinkingLevel,
-    groundingSources,
-    agentId,
-    attachments: storedAttachments,
+        send({
+          t: "done",
+          reply,
+          contextSaved,
+          isDeliverable,
+          conversationId: activeConversationId,
+          groundingSources,
+          suggestedAgentId,
+          slideImagePrompts,
+        });
+      } catch (err) {
+        send({
+          t: "error",
+          v: err instanceof Error ? err.message : "Chat request failed",
+        });
+      } finally {
+        controller.close();
+      }
+    },
   });
 
-  // The first time an agent answers in a thread, it becomes a participant.
-  // This is what makes a thread "become" multi-agent, no separate action.
-  await addParticipant(supabase, activeConversationId, agentId);
-
-  return NextResponse.json({
-    reply,
-    contextSaved,
-    isDeliverable,
-    conversationId: activeConversationId,
-    groundingSources,
-    suggestedAgentId,
-    slideImagePrompts,
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
   });
 }

@@ -12,6 +12,16 @@ import type { StoredAttachment } from "@/lib/conversations";
 
 export type GroundingSource = { title: string; url: string };
 
+export type StreamActivity = { type: "search" | "read"; value: string };
+
+// While streaming, hide any hidden-marker tail (<<<CONTEXT>>>…, <<<DELIVERABLE>>>,
+// etc.) that hasn't been stripped server-side yet. The final "done" event
+// delivers the fully cleaned text.
+function stripMarkerTail(text: string): string {
+  const i = text.indexOf("<<<");
+  return i === -1 ? text : text.slice(0, i).trimEnd();
+}
+
 // dataUrl for the just-sent optimistic bubble; storage_path for one loaded
 // from history (ChatMessage signs a URL for it).
 export type ChatAttachment = {
@@ -99,6 +109,8 @@ export function useAgentChat({
   const [driveLinks, setDriveLinks] = useState<Record<string, string>>({});
   // Per-message deck share token, once "View deck" has created it this session.
   const [deckTokens, setDeckTokens] = useState<Record<number, string>>({});
+  // Live search/read activity for the current streaming turn.
+  const [streamActivity, setStreamActivity] = useState<StreamActivity[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Last-selected mode is a per-browser preference — persists across agents,
@@ -335,9 +347,23 @@ export function useAgentChat({
       },
     ]);
     setInput("");
+    setStreamActivity([]);
     setParticipants((prev) =>
       prev.some((p) => p.id === routeTo.id) ? prev : [...prev, routeTo]
     );
+
+    const replyIndex = history.length + 1;
+    // Empty model turn the stream fills in.
+    setMessages((prev) => [
+      ...prev,
+      { role: "model", text: "", agentId: routeTo.id, agentName: routeTo.name },
+    ]);
+    const patchReply = (patch: Partial<ChatTurn>) =>
+      setMessages((prev) => {
+        const next = [...prev];
+        next[replyIndex] = { ...next[replyIndex], ...patch };
+        return next;
+      });
 
     try {
       const res = await fetch("/api/chat", {
@@ -353,35 +379,85 @@ export function useAgentChat({
           attachments: uploadedRefs,
         }),
       });
-      const data = await res.json();
 
-      if (!res.ok) throw new Error(data?.error ?? "Something went wrong");
+      if (!res.ok || !res.body) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error ?? "Something went wrong");
+      }
 
-      if (data.conversationId) setConversationId(data.conversationId);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let acc = "";
+      let doneEvent: Record<string, unknown> | null = null;
 
-      const replyIndex = history.length + 1;
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "model",
-          text: data.reply,
-          contextSaved: data.contextSaved,
-          isDeliverable: data.isDeliverable,
-          groundingSources: data.groundingSources ?? [],
-          agentId: routeTo.id,
-          agentName: routeTo.name,
-          suggestedAgentId: data.suggestedAgentId ?? null,
-          slideImagePrompts: data.slideImagePrompts ?? [],
-        },
-      ]);
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const chunks = buf.split("\n\n");
+        buf = chunks.pop() ?? "";
+        for (const c of chunks) {
+          const line = c.trim();
+          if (!line.startsWith("data:")) continue;
+          let evt: Record<string, unknown>;
+          try {
+            evt = JSON.parse(line.slice(5).trim());
+          } catch {
+            continue;
+          }
+          if (evt.t === "text") {
+            acc += String(evt.v ?? "");
+            patchReply({ text: stripMarkerTail(acc) });
+          } else if (evt.t === "search" || evt.t === "read") {
+            const item: StreamActivity = {
+              type: evt.t,
+              value: String(evt.v ?? ""),
+            };
+            setStreamActivity((prev) =>
+              prev.some((a) => a.type === item.type && a.value === item.value)
+                ? prev
+                : [...prev, item]
+            );
+          } else if (evt.t === "done") {
+            doneEvent = evt;
+          } else if (evt.t === "error") {
+            throw new Error(String(evt.v ?? "Something went wrong"));
+          }
+        }
+      }
+
+      if (!doneEvent) throw new Error("The response was cut off. Try again.");
+
+      if (doneEvent.conversationId) {
+        setConversationId(doneEvent.conversationId as string);
+      }
+      const finalReply = String(doneEvent.reply ?? acc);
+      patchReply({
+        text: finalReply,
+        contextSaved: Boolean(doneEvent.contextSaved),
+        isDeliverable: Boolean(doneEvent.isDeliverable),
+        groundingSources:
+          (doneEvent.groundingSources as GroundingSource[]) ?? [],
+        suggestedAgentId: (doneEvent.suggestedAgentId as string) ?? null,
+        slideImagePrompts:
+          (doneEvent.slideImagePrompts as ChatTurn["slideImagePrompts"]) ?? [],
+      });
 
       if (SPREADSHEET_COMMAND.test(trimmed)) {
-        const tableData = extractTableData(data.reply);
+        const tableData = extractTableData(finalReply);
         if (tableData) downloadSpreadsheet(replyIndex, tableData);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
+      // Drop the half-streamed model turn on failure.
+      setMessages((prev) =>
+        prev.length === replyIndex + 1 && prev[replyIndex]?.role === "model"
+          ? prev.slice(0, replyIndex)
+          : prev
+      );
     } finally {
+      setStreamActivity([]);
       setSending(false);
     }
   }
@@ -534,6 +610,7 @@ export function useAgentChat({
     downloading,
     driveLinks,
     deckTokens,
+    streamActivity,
     driveConnected,
     scrollRef,
     loadConversation,

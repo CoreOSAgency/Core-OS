@@ -128,6 +128,7 @@ export default function GroupChatShell({
                     agentName={chat.activeAgent?.name ?? "Agent"}
                     mode={chat.mode}
                     lastMessage={chat.messages[chat.messages.length - 1]?.text}
+                    activity={chat.streamActivity}
                   />
                 )}
                 {chat.error && <p className="text-sm text-core-scarlet">{chat.error}</p>}

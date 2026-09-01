@@ -177,6 +177,7 @@ export default function CorePanel({
               agentName={chat.activeAgent?.name ?? "Core"}
               mode={chat.mode}
               lastMessage={chat.messages[chat.messages.length - 1]?.text}
+                    activity={chat.streamActivity}
             />
           )}
           {chat.error && <p className="text-sm text-core-scarlet">{chat.error}</p>}

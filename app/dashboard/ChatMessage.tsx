@@ -149,6 +149,10 @@ export default function ChatMessage({
       ? findAgent(turn.suggestedAgentId)
       : null;
 
+  // A model turn that's still streaming its first tokens has no bubble yet -
+  // the ThinkingIndicator stands in for it.
+  if (turn.role === "model" && !turn.text && !turn.attachments?.length) return null;
+
   return (
     <div className={`flex items-start gap-2 ${isUser ? "justify-end" : "justify-start"}`}>
       {!isUser && showAvatar && (
