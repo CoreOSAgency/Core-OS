@@ -190,9 +190,15 @@ export default function DeckViewer({
       const s = Math.min(el.clientWidth / SLIDE_W, el.clientHeight / SLIDE_H);
       setScale(s > 0 ? s : 1);
     };
+    // Entering/leaving fullscreen resizes the stage a beat after the event.
+    const recomputeSoon = () => requestAnimationFrame(recompute);
     recompute();
     window.addEventListener("resize", recompute);
-    return () => window.removeEventListener("resize", recompute);
+    document.addEventListener("fullscreenchange", recomputeSoon);
+    return () => {
+      window.removeEventListener("resize", recompute);
+      document.removeEventListener("fullscreenchange", recomputeSoon);
+    };
   }, [print]);
 
   // Auto-fit bullet text against real measured height.
