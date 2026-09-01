@@ -4,6 +4,7 @@ import { findAgent } from "@/lib/agents";
 import {
   extractGroundingSources,
   getModelConfig,
+  shouldUseTools,
   type ChatMode,
 } from "@/lib/modelRouter";
 import { createClient } from "@/lib/supabase/server";
@@ -146,7 +147,7 @@ export async function POST(request: Request) {
       maxOutputTokens: config.maxOutputTokens,
     },
   };
-  if (config.tools.length > 0) {
+  if (config.tools.length > 0 && shouldUseTools(mode, message)) {
     geminiBody.tools = config.tools.map((t) => ({ [t.type]: {} }));
   }
   const requestBody = JSON.stringify(geminiBody);

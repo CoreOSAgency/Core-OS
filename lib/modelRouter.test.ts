@@ -1,6 +1,6 @@
 // Run: npx tsx lib/modelRouter.test.ts
 import assert from "node:assert";
-import { getModelConfig, extractGroundingSources } from "./modelRouter";
+import { getModelConfig, extractGroundingSources, shouldUseTools } from "./modelRouter";
 
 assert.equal(getModelConfig("deep").model, "gemini-3.1-pro-preview");
 assert.equal(getModelConfig("quick").tools.length, 0);
@@ -32,5 +32,13 @@ const grounded = extractGroundingSources({
 assert.deepEqual(grounded, [{ title: "X", url: "x" }]);
 assert.deepEqual(extractGroundingSources({}), []);
 assert.deepEqual(extractGroundingSources(null), []);
+
+// shouldUseTools: quick never, deep always, standard on research intent
+assert.equal(shouldUseTools("quick", "research LeadSync competitors"), false);
+assert.equal(shouldUseTools("deep", "hi"), true);
+assert.equal(shouldUseTools("standard", "rewrite this headline to be punchier"), false);
+assert.equal(shouldUseTools("standard", "look up LeadSync's pricing"), true);
+assert.equal(shouldUseTools("standard", "build me a pitch deck"), true);
+assert.equal(shouldUseTools("standard", "read https://goleadsyncs.com"), true);
 
 console.log("modelRouter self-check passed");

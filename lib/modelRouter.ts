@@ -44,6 +44,20 @@ export function getModelConfig(mode: ChatMode): ModelConfig {
   return MODEL_CONFIG[mode] ?? MODEL_CONFIG.standard;
 }
 
+// Search grounding adds real latency (a search round-trip inside Gemini), so on
+// `standard` we only attach the tools when the message actually looks like it
+// needs current info or outside research. `deep` always gets them; `quick`
+// never does. ponytail: keyword heuristic, not a classifier - err toward
+// enabling, a wrong "yes" just costs a few seconds.
+const RESEARCH_HINTS =
+  /\b(search|look ?up|look it up|research|latest|current|today|recent|news|competitor|competitors|alternative|vs\.?|versus|who (is|are|makes)|find out|on the web|google it|pricing|price of|how much|market|industry|trend|trends|benchmark|statistic|stats|study|studies|deck|slides|presentation|pitch|case study|review|reviews)\b|https?:\/\//i;
+
+export function shouldUseTools(mode: ChatMode, message: string): boolean {
+  if (mode === "quick") return false;
+  if (mode === "deep") return true;
+  return RESEARCH_HINTS.test(message);
+}
+
 // Pulls citation sources out of a Gemini generateContent response's
 // groundingMetadata. Returns [] for any missing/malformed shape — never throws.
 export function extractGroundingSources(
