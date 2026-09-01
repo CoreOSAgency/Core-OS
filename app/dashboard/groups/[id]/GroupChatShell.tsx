@@ -10,6 +10,7 @@ import IconSidebar, { type IconSection } from "../../IconSidebar";
 import AgentRosterNav from "../../agency/[agentId]/AgentRosterNav";
 import ChatComposer from "../../ChatComposer";
 import ChatMessage from "../../ChatMessage";
+import ThinkingIndicator from "../../ThinkingIndicator";
 
 export default function GroupChatShell({
   groupId,
@@ -123,11 +124,11 @@ export default function GroupChatShell({
                   </p>
                 )}
                 {chat.sending && (
-                  <div className="rounded-lg bg-core-card px-3 py-2 text-sm text-neutral-400">
-                    {chat.mode === "deep"
-                      ? "Researching…"
-                      : `${chat.activeAgent?.name ?? "Agent"} is typing…`}
-                  </div>
+                  <ThinkingIndicator
+                    agentName={chat.activeAgent?.name ?? "Agent"}
+                    mode={chat.mode}
+                    lastMessage={chat.messages[chat.messages.length - 1]?.text}
+                  />
                 )}
                 {chat.error && <p className="text-sm text-core-scarlet">{chat.error}</p>}
               </div>

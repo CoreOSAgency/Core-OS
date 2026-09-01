@@ -6,6 +6,7 @@ import { CORE_AGENT, type Agent } from "@/lib/agents";
 import { relativeTime, useAgentChat } from "@/lib/useAgentChat";
 import ChatComposer from "./ChatComposer";
 import ChatMessage from "./ChatMessage";
+import ThinkingIndicator from "./ThinkingIndicator";
 import ParticipantStack from "./ParticipantStack";
 
 const PROMPTS = [
@@ -172,11 +173,11 @@ export default function CorePanel({
           )}
 
           {chat.sending && (
-            <div className="max-w-[85%] rounded-lg bg-core-card px-3 py-2 text-sm text-neutral-400">
-              {chat.mode === "deep"
-                ? "Researching…"
-                : `${chat.activeAgent?.name ?? "Core"} is typing…`}
-            </div>
+            <ThinkingIndicator
+              agentName={chat.activeAgent?.name ?? "Core"}
+              mode={chat.mode}
+              lastMessage={chat.messages[chat.messages.length - 1]?.text}
+            />
           )}
           {chat.error && <p className="text-sm text-core-scarlet">{chat.error}</p>}
         </div>

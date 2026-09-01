@@ -10,6 +10,7 @@ import { LAST_AGENT_KEY } from "@/lib/localStorageKeys";
 import IconSidebar, { type IconSection } from "../../IconSidebar";
 import ChatComposer from "../../ChatComposer";
 import ChatMessage from "../../ChatMessage";
+import ThinkingIndicator from "../../ThinkingIndicator";
 import AgentHistoryNav from "./AgentHistoryNav";
 import AgentRosterNav from "./AgentRosterNav";
 
@@ -189,11 +190,11 @@ export default function AgentChatShell({
                     />
                   ))}
                   {chat.sending && (
-                    <div className="rounded-lg bg-core-card px-3 py-2 text-sm text-neutral-400">
-                      {chat.mode === "deep"
-                        ? "Researching…"
-                        : `${chat.activeAgent?.name ?? agent.name} is typing…`}
-                    </div>
+                    <ThinkingIndicator
+                      agentName={chat.activeAgent?.name ?? agent.name}
+                      mode={chat.mode}
+                      lastMessage={chat.messages[chat.messages.length - 1]?.text}
+                    />
                   )}
                 </div>
               )}
